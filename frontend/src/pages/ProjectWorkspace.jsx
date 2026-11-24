@@ -364,6 +364,10 @@ export default function ProjectWorkspace() {
         section={activeSection}
         initialRecord={editingRecord}
         onSubmit={handleSaveRecord}
+        onDelete={(rec) => {
+          setRecordModalOpen(false)
+          setDeleteRecordTarget(rec)
+        }}
       />
 
       <ConfirmModal

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Save, AlertTriangle, Loader2, CheckCircle2, Calendar, IndianRupee } from 'lucide-react'
+import { Plus, Save, AlertTriangle, Loader2, CheckCircle2, Calendar, IndianRupee, Trash2 } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import InputField, { inputClass } from '../ui/InputField'
@@ -18,6 +18,7 @@ export default function RecordFormModal({
   section,
   initialRecord = null,
   onSubmit,
+  onDelete,
 }) {
   const isEditing = Boolean(initialRecord)
   const fields = section?.fields || []
@@ -289,42 +290,59 @@ export default function RecordFormModal({
         )}
 
         {/* Footer Actions */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-slate-100">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-
-          {!isEditing && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={submitting}
-              onClick={() => handleSubmit(null, true)}
-              className="text-amber-700 border-amber-300 hover:bg-amber-50"
-            >
-              <Plus className="w-4 h-4" />
-              Save & Add Next
-            </Button>
-          )}
-
-          <Button type="submit" variant="primary" disabled={submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : isEditing ? (
-              <>
-                <Save className="w-4 h-4" />
-                Update Entry
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Save Entry
-              </>
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-3 border-t border-slate-100">
+          <div>
+            {isEditing && onDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={submitting}
+                onClick={() => onDelete(initialRecord)}
+                className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Entry
+              </Button>
             )}
-          </Button>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+
+            {!isEditing && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting}
+                onClick={() => handleSubmit(null, true)}
+                className="text-amber-700 border-amber-300 hover:bg-amber-50"
+              >
+                <Plus className="w-4 h-4" />
+                Save & Add Next
+              </Button>
+            )}
+
+            <Button type="submit" variant="primary" disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : isEditing ? (
+                <>
+                  <Save className="w-4 h-4" />
+                  Update Entry
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Entry
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

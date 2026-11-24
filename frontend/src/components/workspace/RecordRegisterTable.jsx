@@ -22,6 +22,28 @@ function getFieldIcon(type) {
   }
 }
 
+const CURRENCY_NAME_RE = /\b(rate|amount|price|cost|bill|wage|salary|fee|total|budget)\b/i
+
+/**
+ * Formats ISO/YYYY-MM-DD date string cleanly as "24 Nov 2026" without timezone shift
+ */
+function formatHumanDate(raw) {
+  const str = String(raw).trim()
+  const ymdMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (ymdMatch) {
+    const [, y, m, d] = ymdMatch.map(Number)
+    const dt = new Date(y, m - 1, d)
+    if (!Number.isNaN(dt.getTime())) {
+      return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    }
+  }
+  const dt = new Date(str)
+  if (!Number.isNaN(dt.getTime())) {
+    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  return str
+}
+
 /**
  * Formats a field value cleanly for mobile cards & display
  */
@@ -47,6 +69,14 @@ function formatDisplayValue(field, value) {
     return <span className="text-slate-300 text-xs">—</span>
   }
 
+  if (field.fieldType === 'date') {
+    return (
+      <span className="text-slate-800 font-medium tabular-nums">
+        {formatHumanDate(value)}
+      </span>
+    )
+  }
+
   if (field.fieldType === 'currency') {
     const num = Number(value)
     if (Number.isNaN(num)) return <span className="text-sm text-slate-800">{String(value)}</span>
@@ -63,6 +93,20 @@ function formatDisplayValue(field, value) {
     return (
       <span className="font-medium text-slate-800 tabular-nums">
         {num.toLocaleString('en-IN')}
+      </span>
+    )
+  }
+
+  // Format plain numeric strings in currency-named text columns (e.g., RATE = 67890 -> ₹67,890)
+  if (
+    field.fieldType === 'text' &&
+    CURRENCY_NAME_RE.test(field.name) &&
+    /^-?\d+(\.\d{1,2})?$/.test(String(value).trim())
+  ) {
+    const num = Number(String(value).trim())
+    return (
+      <span className="font-semibold text-slate-900 tabular-nums">
+        ₹{num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
       </span>
     )
   }
@@ -263,6 +307,7 @@ function EditableCell({ field, value, onSave }) {
 function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }) {
   const [name, setName] = useState('')
   const [fieldType, setFieldType] = useState('text')
+  const [typeTouched, setTypeTouched] = useState(false)
   const [optionsText, setOptionsText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef(null)
@@ -271,10 +316,23 @@ function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }
     if (open) {
       setName('')
       setFieldType('text')
+      setTypeTouched(false)
       setOptionsText('')
       setTimeout(() => inputRef.current?.focus(), 60)
     }
   }, [open])
+
+  const handleNameChange = (val) => {
+    setName(val)
+    if (typeTouched) return
+    if (CURRENCY_NAME_RE.test(val)) {
+      setFieldType('currency')
+    } else if (/\bdate\b/i.test(val)) {
+      setFieldType('date')
+    } else if (/\b(qty|quantity|hours|hrs|days|count|bags|units)\b/i.test(val)) {
+      setFieldType('number')
+    }
+  }
 
   if (!open) return null
 
@@ -336,7 +394,7 @@ function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }
               required
               placeholder="e.g. Rate, Start Date, Vendor, Hours"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
 
@@ -356,7 +414,10 @@ function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }
             </label>
             <select
               value={fieldType}
-              onChange={(e) => setFieldType(e.target.value)}
+              onChange={(e) => {
+                setTypeTouched(true)
+                setFieldType(e.target.value)
+              }}
               className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
             >
               <option value="text">Text (Description, Machine, Name)</option>
@@ -478,7 +539,7 @@ function ColumnHeaderCell({ field, displayLabel, onDeleteField }) {
 
 /**
  * Mobile Stacked Entry Card (< 640px) — clean zero-scroll overview of every column.
- * Tapping the card opens the Bottom Sheet form for editing.
+ * Tapping the card opens the Bottom Sheet form for editing (with Delete safely inside).
  */
 function MobileEntryCard({
   record,
@@ -486,17 +547,18 @@ function MobileEntryCard({
   fields,
   displayLabels,
   onEdit,
-  onDelete,
-  isDeleting,
 }) {
   // Choose a natural headline: first text/select/date field if available
   const headlineField =
-    fields.find((f) => f.fieldType === 'text') ||
+    fields.find((f) => f.fieldType === 'text' && !CURRENCY_NAME_RE.test(f.name)) ||
     fields.find((f) => f.fieldType === 'select') ||
     fields[0]
 
-  // Choose a prominent highlight number/currency on the card header right
-  const amountField = fields.find((f) => f.fieldType === 'currency')
+  // Choose a prominent highlight currency/rate field on the card header right
+  const amountField =
+    fields.find((f) => f.id !== headlineField?.id && f.fieldType === 'currency') ||
+    fields.find((f) => f.id !== headlineField?.id && CURRENCY_NAME_RE.test(f.name)) ||
+    fields.find((f) => f.id !== headlineField?.id && f.fieldType === 'number')
 
   const remainingFields = fields.filter(
     (f) => f.id !== headlineField?.id && f.id !== amountField?.id
@@ -532,41 +594,24 @@ function MobileEntryCard({
             )}
           </div>
           {headlineField && (
-            <p className="text-sm font-bold text-slate-900 truncate pt-0.5">
-              {hasHeadline ? String(headlineVal) : <span className="text-slate-300 font-normal">Untitled entry</span>}
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {amountField && (
-            <div className="text-right pr-1">
-              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-                {displayLabels[amountField.id]}
-              </p>
-              <div className="text-sm font-bold text-slate-900">
-                {formatDisplayValue(amountField, record.data?.[String(amountField.id)])}
-              </div>
+            <div className="text-sm font-bold text-slate-900 truncate pt-0.5">
+              {hasHeadline
+                ? formatDisplayValue(headlineField, headlineVal)
+                : <span className="text-slate-300 font-normal">Untitled entry</span>}
             </div>
           )}
-
-          <button
-            type="button"
-            disabled={isDeleting}
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(record)
-            }}
-            className="p-2 -mr-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-            aria-label="Delete entry"
-          >
-            {isDeleting ? (
-              <Loader2 className="w-4 h-4 animate-spin text-red-500" />
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-          </button>
         </div>
+
+        {amountField && (
+          <div className="text-right flex-shrink-0">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+              {displayLabels[amountField.id]}
+            </p>
+            <div className="text-sm font-bold text-slate-900">
+              {formatDisplayValue(amountField, record.data?.[String(amountField.id)])}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Remaining Fields Grid (All visible without horizontal scrolling) */}
@@ -665,15 +710,23 @@ export default function RecordRegisterTable({
     })
   })
 
-  // Numeric column sums for status bar
-  const numericFields = fields.filter((f) => f.fieldType === 'currency' || f.fieldType === 'number')
+  // Numeric / currency column sums for status bar
+  const numericFields = fields.filter(
+    (f) => f.fieldType === 'currency' || f.fieldType === 'number' || CURRENCY_NAME_RE.test(f.name)
+  )
   const statsByField = {}
   for (const f of numericFields) {
     const numbers = filtered
       .map((r) => Number(r.data?.[String(f.id)]))
       .filter((n) => !Number.isNaN(n) && n !== 0)
-    const sum = numbers.reduce((acc, n) => acc + n, 0)
-    statsByField[f.id] = { sum, count: numbers.length }
+    if (numbers.length > 0 || f.fieldType === 'currency' || f.fieldType === 'number') {
+      const sum = numbers.reduce((acc, n) => acc + n, 0)
+      statsByField[f.id] = {
+        sum,
+        count: numbers.length,
+        isCurrency: f.fieldType === 'currency' || CURRENCY_NAME_RE.test(f.name),
+      }
+    }
   }
 
   const handleCellChange = (record, fieldId, nextVal) => {
@@ -727,10 +780,15 @@ export default function RecordRegisterTable({
           </div>
         )}
 
-        {/* Right: Primary "+ Add Entry" CTA + "⋮" Sheet Menu */}
+        {/* Right: Desktop "+ Add Entry" CTA + "⋮" Sheet Menu (mobile uses sticky FAB) */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {fields.length > 0 ? (
-            <Button variant="primary" size="sm" onClick={onAddEntry}>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onAddEntry}
+              className="hidden sm:inline-flex"
+            >
               <Plus className="w-4 h-4" />
               <span>Add Entry</span>
             </Button>
@@ -865,10 +923,33 @@ export default function RecordRegisterTable({
                 fields={fields}
                 displayLabels={displayLabels}
                 onEdit={onEditEntry}
-                onDelete={onDeleteRecord}
-                isDeleting={deletingRecordId === rec.id}
               />
             ))}
+
+            {/* Subtle muted summary footer on mobile */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1 text-[11px] text-slate-400 font-medium">
+              <span className="tabular-nums">
+                {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'} • {fields.length} {fields.length === 1 ? 'column' : 'columns'}
+              </span>
+              {Object.keys(statsByField).length > 0 && (
+                <div className="flex flex-wrap items-center gap-3">
+                  {numericFields.map((f) => {
+                    const s = statsByField[f.id]
+                    if (!s) return null
+                    return (
+                      <span key={f.id} className="tabular-nums">
+                        {displayLabels[f.id]}:{' '}
+                        <strong className="text-slate-600 font-semibold">
+                          {s.isCurrency
+                            ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                            : s.sum.toLocaleString('en-IN')}
+                        </strong>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ─── Desktop / Tablet Spreadsheet Grid (>= 640px) ──────── */}
@@ -989,8 +1070,8 @@ export default function RecordRegisterTable({
             )}
           </div>
 
-          {/* ─── Bottom Status Bar (Sums & Counts) ──────────────────── */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-slate-900 text-slate-200 text-xs font-medium">
+          {/* ─── Desktop Status Bar (Sums & Counts) ─────────────────── */}
+          <div className="hidden sm:flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-slate-900 text-slate-200 text-xs font-medium">
             <div className="flex items-center gap-3">
               <span className="tabular-nums font-semibold">
                 {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'}
@@ -1012,7 +1093,7 @@ export default function RecordRegisterTable({
                         {displayLabels[f.id]} SUM:
                       </span>
                       <strong className="text-amber-400 font-bold">
-                        {f.fieldType === 'currency'
+                        {s.isCurrency
                           ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
                           : s.sum.toLocaleString('en-IN')}
                       </strong>
