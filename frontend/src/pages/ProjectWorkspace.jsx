@@ -12,6 +12,7 @@ import ProjectFormModal from '../components/project/ProjectFormModal'
 import SectionTabs from '../components/workspace/SectionTabs'
 import SectionFormModal from '../components/workspace/SectionFormModal'
 import CustomFieldBuilderModal from '../components/workspace/CustomFieldBuilderModal'
+import RecordFormModal from '../components/workspace/RecordFormModal'
 import RecordRegisterTable from '../components/workspace/RecordRegisterTable'
 import { useToast } from '../components/ui/Toast'
 import { useTopBar } from '../components/layout/AppLayout'
@@ -49,6 +50,8 @@ export default function ProjectWorkspace() {
 
   const [fieldBuilderOpen, setFieldBuilderOpen] = useState(false)
 
+  const [recordModalOpen, setRecordModalOpen]       = useState(false)
+  const [editingRecord, setEditingRecord]           = useState(null)
   const [deleteRecordTarget, setDeleteRecordTarget] = useState(null)
   const [deletingRecordId, setDeletingRecordId]     = useState(null)
 
@@ -81,9 +84,15 @@ export default function ProjectWorkspace() {
     setTopBar({
       title: project.name,
       actions: (
-        <Button variant="outline" size="sm" onClick={() => setEditProjectOpen(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setEditProjectOpen(true)}
+          aria-label="Edit Project"
+          title="Edit Project"
+        >
           <Pencil className="w-3.5 h-3.5" />
-          Edit Project
+          <span className="hidden sm:inline">Edit Project</span>
         </Button>
       ),
     })
@@ -177,19 +186,27 @@ export default function ProjectWorkspace() {
   }
 
   const handleDeleteField = async (fieldId) => {
-    await deleteField(fieldId)
-    setSections((prev) =>
-      prev.map((s) =>
-        s.id === activeSection.id
-          ? { ...s, fields: s.fields.filter((f) => f.id !== fieldId) }
-          : s
+    try {
+      await deleteField(fieldId)
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === activeSection.id
+            ? { ...s, fields: s.fields.filter((f) => f.id !== fieldId) }
+            : s
+        )
       )
-    )
-    showToast('Field removed')
+      showToast('Column removed')
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
   }
 
-  const handleInlineCreateRecord = async (data) => {
-    try {
+  const handleSaveRecord = async (data) => {
+    if (editingRecord) {
+      const res = await updateRecord(editingRecord.id, data)
+      setRecords((prev) => prev.map((r) => (r.id === editingRecord.id ? res.data : r)))
+      showToast('Entry updated')
+    } else {
       const res = await createRecord(activeSection.id, data)
       setRecords((prev) => [...prev, res.data])
       setSections((prev) =>
@@ -197,10 +214,7 @@ export default function ProjectWorkspace() {
           s.id === activeSection.id ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
         )
       )
-      return res.data
-    } catch (err) {
-      showToast(err.message, 'error')
-      throw err
+      showToast('Entry saved')
     }
   }
 
@@ -291,8 +305,6 @@ export default function ProjectWorkspace() {
             activeSectionId={activeId}
             onSelect={(secId) => setActiveId(secId)}
             onAddSection={() => { setEditingSection(null); setSectionModalOpen(true) }}
-            onEditSection={(sec) => { setEditingSection(sec); setSectionModalOpen(true) }}
-            onDeleteSection={(sec) => setDeleteSectionTarget(sec)}
           />
 
           {activeSection && (
@@ -306,11 +318,15 @@ export default function ProjectWorkspace() {
                 section={activeSection}
                 records={records}
                 loading={loadingRecords}
-                onInlineCreateRecord={handleInlineCreateRecord}
+                onAddEntry={() => { setEditingRecord(null); setRecordModalOpen(true) }}
+                onEditEntry={(rec) => { setEditingRecord(rec); setRecordModalOpen(true) }}
                 onInlineUpdateRecord={handleInlineUpdateRecord}
                 onDeleteRecord={(rec) => setDeleteRecordTarget(rec)}
                 onAddColumn={handleAddField}
                 onDeleteField={handleDeleteField}
+                onCustomizeFields={() => setFieldBuilderOpen(true)}
+                onEditSection={(sec) => { setEditingSection(sec); setSectionModalOpen(true) }}
+                onDeleteSection={(sec) => setDeleteSectionTarget(sec)}
                 deletingRecordId={deletingRecordId}
               />
             </Card>
@@ -340,6 +356,14 @@ export default function ProjectWorkspace() {
         onAddField={handleAddField}
         onUpdateField={handleUpdateField}
         onDeleteField={handleDeleteField}
+      />
+
+      <RecordFormModal
+        open={recordModalOpen}
+        onClose={() => setRecordModalOpen(false)}
+        section={activeSection}
+        initialRecord={editingRecord}
+        onSubmit={handleSaveRecord}
       />
 
       <ConfirmModal

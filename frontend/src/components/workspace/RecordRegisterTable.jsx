@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import {
-  Trash2, Search, Download, Plus,
-  CheckCircle2, Minus, Loader2,
+  Trash2, Search, Download, Plus, Pencil,
+  CheckCircle2, Minus, Loader2, SlidersHorizontal,
   Table as TableIcon, IndianRupee, Hash, Calendar, Type, List, CheckSquare,
-  X, Check, MoreVertical
+  X, MoreVertical, AlertTriangle, FileSpreadsheet
 } from 'lucide-react'
 import Button from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
@@ -23,15 +23,90 @@ function getFieldIcon(type) {
 }
 
 /**
- * Fast inline cell editor / viewer
+ * Formats a field value cleanly for mobile cards & display
  */
-function EditableCell({
-  field,
-  value,
-  onSave,
-  isDraft = false,
-  placeholder = '',
-}) {
+function formatDisplayValue(field, value) {
+  if (field.fieldType === 'checkbox') {
+    const isChecked = Boolean(value)
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+          isChecked
+            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+            : 'bg-slate-100 text-slate-400'
+        }`}
+      >
+        {isChecked ? <CheckCircle2 className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+        <span>{isChecked ? 'Yes' : 'No'}</span>
+      </span>
+    )
+  }
+
+  const hasValue = value !== undefined && value !== null && String(value).trim() !== ''
+  if (!hasValue) {
+    return <span className="text-slate-300 text-xs">—</span>
+  }
+
+  if (field.fieldType === 'currency') {
+    const num = Number(value)
+    if (Number.isNaN(num)) return <span className="text-sm text-slate-800">{String(value)}</span>
+    return (
+      <span className="font-semibold text-slate-900 tabular-nums">
+        ₹{num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+      </span>
+    )
+  }
+
+  if (field.fieldType === 'number') {
+    const num = Number(value)
+    if (Number.isNaN(num)) return <span className="text-sm text-slate-800">{String(value)}</span>
+    return (
+      <span className="font-medium text-slate-800 tabular-nums">
+        {num.toLocaleString('en-IN')}
+      </span>
+    )
+  }
+
+  if (field.fieldType === 'select') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/60">
+        {value}
+      </span>
+    )
+  }
+
+  return <span className="text-slate-800 break-words">{String(value)}</span>
+}
+
+/**
+ * Builds distinct display labels so duplicate column names (e.g., two "DATE" columns)
+ * remain clearly distinguishable across headers and mobile cards.
+ */
+function buildDisplayLabels(fields) {
+  const counts = {}
+  for (const f of fields) {
+    const key = f.name.trim().toLowerCase()
+    counts[key] = (counts[key] || 0) + 1
+  }
+
+  const seen = {}
+  const labels = {}
+  for (const f of fields) {
+    const key = f.name.trim().toLowerCase()
+    if (counts[key] > 1) {
+      seen[key] = (seen[key] || 0) + 1
+      labels[f.id] = `${f.name} (${seen[key]})`
+    } else {
+      labels[f.id] = f.name
+    }
+  }
+  return labels
+}
+
+/**
+ * Fast inline cell editor / viewer for desktop & tablet table cells
+ */
+function EditableCell({ field, value, onSave }) {
   const [isEditing, setIsEditing] = useState(false)
   const [tempVal, setTempVal] = useState(value ?? '')
   const inputRef = useRef(null)
@@ -64,7 +139,6 @@ function EditableCell({
     }
   }
 
-  // Checkbox: 1-tap direct toggle
   if (field.fieldType === 'checkbox') {
     const isChecked = Boolean(value)
     return (
@@ -72,21 +146,11 @@ function EditableCell({
         className="w-full h-full flex items-center justify-center p-2 cursor-pointer select-none"
         onClick={() => onSave(!isChecked)}
       >
-        <span
-          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-            isChecked
-              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
-              : 'bg-slate-100 text-slate-400'
-          }`}
-        >
-          {isChecked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
-          <span>{isChecked ? 'Yes' : 'No'}</span>
-        </span>
+        {formatDisplayValue(field, value)}
       </div>
     )
   }
 
-  // Active editing state
   if (isEditing) {
     if (field.fieldType === 'select') {
       return (
@@ -170,14 +234,11 @@ function EditableCell({
         onChange={(e) => setTempVal(e.target.value)}
         onBlur={() => commitChange()}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder || 'Type here...'}
+        placeholder="Type here..."
         className="w-full h-10 px-2 bg-amber-50 text-slate-900 text-sm font-medium border border-amber-400 rounded focus:outline-none"
       />
     )
   }
-
-  // Resting display state: click or tap to edit
-  const hasValue = value !== undefined && value !== null && String(value).trim() !== ''
 
   return (
     <div
@@ -189,39 +250,17 @@ function EditableCell({
           setIsEditing(true)
         }
       }}
-      className={`w-full min-h-[42px] px-3 py-2 flex items-center cursor-pointer transition-colors select-none text-sm rounded ${
-        isDraft
-          ? 'text-slate-400 italic hover:bg-amber-50/60 hover:text-slate-700'
-          : 'hover:bg-amber-50/70 text-slate-800'
-      }`}
+      className="w-full min-h-[42px] px-3 py-2 flex items-center cursor-pointer transition-colors select-none text-sm rounded hover:bg-amber-50/70 text-slate-800"
     >
-      {!hasValue ? (
-        <span className="text-slate-300 text-xs italic">
-          {placeholder || (isDraft ? '+ Add...' : '—')}
-        </span>
-      ) : field.fieldType === 'currency' ? (
-        <span className="font-semibold text-slate-900 tabular-nums">
-          ₹{Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-        </span>
-      ) : field.fieldType === 'number' ? (
-        <span className="font-medium text-slate-800 tabular-nums">
-          {Number(value).toLocaleString('en-IN')}
-        </span>
-      ) : field.fieldType === 'select' ? (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/60">
-          {value}
-        </span>
-      ) : (
-        <span className="truncate max-w-xs">{String(value)}</span>
-      )}
+      {formatDisplayValue(field, value)}
     </div>
   )
 }
 
 /**
- * Quick inline popover to add as many columns as needed
+ * Quick bottom-sheet / popover to add a column with duplicate-name safeguard
  */
-function QuickAddColumnModal({ open, onClose, onAddColumn }) {
+function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }) {
   const [name, setName] = useState('')
   const [fieldType, setFieldType] = useState('text')
   const [optionsText, setOptionsText] = useState('')
@@ -233,11 +272,18 @@ function QuickAddColumnModal({ open, onClose, onAddColumn }) {
       setName('')
       setFieldType('text')
       setOptionsText('')
-      setTimeout(() => inputRef.current?.focus(), 50)
+      setTimeout(() => inputRef.current?.focus(), 60)
     }
   }, [open])
 
   if (!open) return null
+
+  const normalized = name.trim().toLowerCase()
+  const isDuplicate = Boolean(
+    normalized &&
+    existingFields.some((f) => f.name.trim().toLowerCase() === normalized)
+  )
+  const hasDateAlready = existingFields.some((f) => f.fieldType === 'date')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -261,34 +307,47 @@ function QuickAddColumnModal({ open, onClose, onAddColumn }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-2xl border border-slate-200 space-y-4"
+        className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl border border-slate-200 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="sm:hidden flex justify-center -mt-2">
+          <div className="w-10 h-1 rounded-full bg-slate-200" />
+        </div>
+
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <h4 className="text-sm font-bold text-slate-900">Add New Column</h4>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button type="button" onClick={onClose} className="p-1.5 -mr-1 rounded-lg text-slate-400 hover:text-slate-600">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-              Column Header Name *
+              Column Name *
             </label>
             <input
               ref={inputRef}
               type="text"
               required
-              placeholder="e.g. Rate, Vehicle No, Bags, Supplier"
+              placeholder="e.g. Rate, Start Date, Vendor, Hours"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
+
+            {isDuplicate && (
+              <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 flex items-start gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-600" />
+                <span>
+                  A column named <strong>"{name.trim()}"</strong> already exists. Try a clearer name like <em>Start Date</em> or <em>End Date</em>.
+                </span>
+              </p>
+            )}
           </div>
 
           <div>
@@ -298,15 +357,31 @@ function QuickAddColumnModal({ open, onClose, onAddColumn }) {
             <select
               value={fieldType}
               onChange={(e) => setFieldType(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
             >
-              <option value="text">Text (General Description, Name)</option>
-              <option value="currency">Currency / Amount (₹)</option>
+              <option value="text">Text (Description, Machine, Name)</option>
+              <option value="currency">Currency / Rate (₹)</option>
               <option value="number">Number / Quantity</option>
               <option value="date">Date</option>
               <option value="select">Dropdown Choices</option>
               <option value="checkbox">Yes / No Checkbox</option>
             </select>
+
+            {fieldType === 'date' && hasDateAlready && !name.trim() && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                <span className="text-[11px] text-slate-400">Suggestions:</span>
+                {['Start Date', 'End Date', 'Bill Date'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setName(preset)}
+                    className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-800 text-[11px] font-medium transition-colors"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {fieldType === 'select' && (
@@ -319,7 +394,7 @@ function QuickAddColumnModal({ open, onClose, onAddColumn }) {
                 placeholder="Paid, Pending, Partial"
                 value={optionsText}
                 onChange={(e) => setOptionsText(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
           )}
@@ -339,9 +414,9 @@ function QuickAddColumnModal({ open, onClose, onAddColumn }) {
 }
 
 /**
- * Column Header with Options (Rename/Delete)
+ * Column Header with Options (Delete Column)
  */
-function ColumnHeaderCell({ field, onDeleteField }) {
+function ColumnHeaderCell({ field, displayLabel, onDeleteField }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -364,7 +439,7 @@ function ColumnHeaderCell({ field, onDeleteField }) {
       <div className="flex items-center justify-between gap-1.5">
         <div className="inline-flex items-center gap-1.5 min-w-0">
           {getFieldIcon(field.fieldType)}
-          <span className="truncate">{field.name}</span>
+          <span className="truncate">{displayLabel}</span>
           {field.isRequired && <span className="text-red-500 text-xs">*</span>}
         </div>
 
@@ -380,7 +455,7 @@ function ColumnHeaderCell({ field, onDeleteField }) {
 
       {menuOpen && (
         <div
-          className="absolute left-2 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-30 font-normal lowercase tracking-normal text-left"
+          className="absolute left-2 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-30 font-normal normal-case tracking-normal text-left"
           onClick={() => setMenuOpen(false)}
         >
           <button
@@ -390,7 +465,7 @@ function ColumnHeaderCell({ field, onDeleteField }) {
                 onDeleteField(field.id)
               }
             }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Delete Column</span>
@@ -402,28 +477,183 @@ function ColumnHeaderCell({ field, onDeleteField }) {
 }
 
 /**
- * RecordRegisterTable — Pure Excel Experience:
- * - Empty cells under each column ready to be edited
- * - Type in empty row at the bottom -> row is saved -> new blank row appears
- * - Click any existing cell to edit inline
- * - Permanent "+ Column" button to add as many columns as needed
- * - Pinned Excel status bar (Sums, Counts, Row totals)
+ * Mobile Stacked Entry Card (< 640px) — clean zero-scroll overview of every column.
+ * Tapping the card opens the Bottom Sheet form for editing.
+ */
+function MobileEntryCard({
+  record,
+  index,
+  fields,
+  displayLabels,
+  onEdit,
+  onDelete,
+  isDeleting,
+}) {
+  // Choose a natural headline: first text/select/date field if available
+  const headlineField =
+    fields.find((f) => f.fieldType === 'text') ||
+    fields.find((f) => f.fieldType === 'select') ||
+    fields[0]
+
+  // Choose a prominent highlight number/currency on the card header right
+  const amountField = fields.find((f) => f.fieldType === 'currency')
+
+  const remainingFields = fields.filter(
+    (f) => f.id !== headlineField?.id && f.id !== amountField?.id
+  )
+
+  const headlineVal = headlineField ? record.data?.[String(headlineField.id)] : ''
+  const hasHeadline = headlineVal !== undefined && headlineVal !== null && String(headlineVal).trim() !== ''
+
+  return (
+    <div
+      onClick={() => onEdit(record)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onEdit(record)
+        }
+      }}
+      className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-xs active:scale-[0.99] transition-all cursor-pointer space-y-3"
+    >
+      {/* Card Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold tabular-nums">
+              #{String(index + 1).padStart(2, '0')}
+            </span>
+            {headlineField && (
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">
+                {displayLabels[headlineField.id]}
+              </span>
+            )}
+          </div>
+          {headlineField && (
+            <p className="text-sm font-bold text-slate-900 truncate pt-0.5">
+              {hasHeadline ? String(headlineVal) : <span className="text-slate-300 font-normal">Untitled entry</span>}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {amountField && (
+            <div className="text-right pr-1">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                {displayLabels[amountField.id]}
+              </p>
+              <div className="text-sm font-bold text-slate-900">
+                {formatDisplayValue(amountField, record.data?.[String(amountField.id)])}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            disabled={isDeleting}
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(record)
+            }}
+            className="p-2 -mr-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+            aria-label="Delete entry"
+          >
+            {isDeleting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Remaining Fields Grid (All visible without horizontal scrolling) */}
+      {remainingFields.length > 0 && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-3 border-t border-slate-100">
+          {remainingFields.map((f) => (
+            <div key={f.id} className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
+                {displayLabels[f.id]}
+              </p>
+              <div className="text-xs font-medium text-slate-800 mt-0.5 truncate">
+                {formatDisplayValue(f, record.data?.[String(f.id)])}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * RecordRegisterTable — Mobile-first register + desktop spreadsheet:
+ * - Primary CTA: "+ Add Entry" (plus sticky mobile FAB above bottom nav)
+ * - Sheet actions (Add Column, Manage Columns, Export CSV, Rename Sheet, Delete Sheet) live safely in ⋮ menu
+ * - On < 640px phones: clean stacked entry cards + slide-up Bottom Sheet form
+ * - On >= 640px desktop/tablet: Excel-style grid with inline cell edits & right-edge scroll fade indicator
+ * - When 0 entries exist: clean centered EmptyState instead of collapsed empty table box
  */
 export default function RecordRegisterTable({
   section,
   records,
   loading,
+  onAddEntry,
+  onEditEntry,
   onInlineUpdateRecord,
-  onInlineCreateRecord,
   onDeleteRecord,
   onAddColumn,
   onDeleteField,
+  onCustomizeFields,
+  onEditSection,
+  onDeleteSection,
   deletingRecordId,
 }) {
   const [search, setSearch] = useState('')
-  const [draftRow, setDraftRow] = useState({})
   const [addColumnOpen, setAddColumnOpen] = useState(false)
+  const [sheetMenuOpen, setSheetMenuOpen] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const sheetMenuRef = useRef(null)
+  const tableScrollRef = useRef(null)
   const fields = section?.fields || []
+
+  const displayLabels = useMemo(() => buildDisplayLabels(fields), [fields])
+
+  // Close sheet menu on outside click
+  useEffect(() => {
+    if (!sheetMenuOpen) return
+    const close = (e) => {
+      if (sheetMenuRef.current && !sheetMenuRef.current.contains(e.target)) {
+        setSheetMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [sheetMenuOpen])
+
+  // Reset search when switching sheets
+  useEffect(() => {
+    setSearch('')
+  }, [section?.id])
+
+  // Check horizontal overflow to toggle subtle right-edge fade hint on desktop/tablet table
+  const checkTableScroll = useCallback(() => {
+    const el = tableScrollRef.current
+    if (!el) {
+      setCanScrollRight(false)
+      return
+    }
+    setCanScrollRight(el.scrollWidth - el.clientWidth - el.scrollLeft > 4)
+  }, [])
+
+  useEffect(() => {
+    checkTableScroll()
+    window.addEventListener('resize', checkTableScroll)
+    return () => window.removeEventListener('resize', checkTableScroll)
+  }, [checkTableScroll, fields.length, records.length, search])
 
   // Filter across any custom field
   const filtered = records.filter((rec) => {
@@ -435,7 +665,7 @@ export default function RecordRegisterTable({
     })
   })
 
-  // Numeric column calculations for Excel-like status bar
+  // Numeric column sums for status bar
   const numericFields = fields.filter((f) => f.fieldType === 'currency' || f.fieldType === 'number')
   const statsByField = {}
   for (const f of numericFields) {
@@ -446,7 +676,6 @@ export default function RecordRegisterTable({
     statsByField[f.id] = { sum, count: numbers.length }
   }
 
-  // Handle cell edit on an existing row
   const handleCellChange = (record, fieldId, nextVal) => {
     const updatedData = {
       ...(record.data || {}),
@@ -455,30 +684,10 @@ export default function RecordRegisterTable({
     onInlineUpdateRecord(record.id, updatedData)
   }
 
-  // Handle editing the persistent bottom blank row
-  const handleDraftCellChange = async (fieldId, nextVal) => {
-    const updatedDraft = {
-      ...draftRow,
-      [String(fieldId)]: nextVal,
-    }
-    setDraftRow(updatedDraft)
-
-    // Check if there is meaningful data to commit
-    const hasAnyContent = Object.values(updatedDraft).some(
-      (v) => v !== undefined && v !== null && String(v).trim() !== '' && v !== false
-    )
-
-    if (hasAnyContent) {
-      // Auto-commit new row and clear draft so a new empty row is instantly available!
-      await onInlineCreateRecord(updatedDraft)
-      setDraftRow({})
-    }
-  }
-
   const handleExportCsv = () => {
     if (!fields.length || !filtered.length) return
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const header = ['#', ...fields.map((f) => esc(f.name))].join(',')
+    const header = ['#', ...fields.map((f) => esc(displayLabels[f.id]))].join(',')
     const rows = filtered.map((rec, idx) =>
       [idx + 1, ...fields.map((f) => esc(rec.data?.[String(f.id)] ?? ''))].join(',')
     )
@@ -492,246 +701,349 @@ export default function RecordRegisterTable({
     URL.revokeObjectURL(url)
   }
 
-  // If section has 0 columns, show 1-tap column builder
-  if (fields.length === 0) {
-    return (
-      <div className="p-8 sm:p-12 text-center space-y-5">
-        <div className="max-w-md mx-auto space-y-2">
-          <h3 className="text-lg font-bold text-slate-900">Add Columns to {section.name}</h3>
-          <p className="text-sm text-slate-500">
-            Just like Excel, add columns to structure your records. You can add as many columns as needed.
-          </p>
-        </div>
-
-        <div>
-          <Button variant="primary" onClick={() => setAddColumnOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Add First Column
-          </Button>
-        </div>
-
-        <QuickAddColumnModal
-          open={addColumnOpen}
-          onClose={() => setAddColumnOpen(false)}
-          onAddColumn={onAddColumn}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="relative">
-      {/* ─── Excel Spreadsheet Header & Controls ──────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
-        {/* Search */}
-        <div className="relative flex items-center w-full sm:max-w-xs">
-          <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search in ${section.name}...`}
-            className="w-full pl-9 pr-4 py-1.5 rounded-lg bg-slate-100 text-sm text-slate-800 placeholder-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
-          />
-        </div>
+      {/* ─── Sheet Toolbar ──────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
+        {/* Left: Search (when entries exist) or Sheet Title */}
+        {fields.length > 0 && records.length > 0 ? (
+          <div className="relative flex items-center flex-1 sm:max-w-xs min-w-0">
+            <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${section.name}...`}
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-100 text-sm text-slate-800 placeholder-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 min-w-0">
+            <FileSpreadsheet className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <span className="text-sm font-bold text-slate-800 truncate">{section.name}</span>
+            <span className="text-xs text-slate-400 font-medium flex-shrink-0">
+              {fields.length} {fields.length === 1 ? 'col' : 'cols'}
+            </span>
+          </div>
+        )}
 
-        {/* Toolbar Controls */}
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          {filtered.length > 0 && (
-            <Button variant="outline" size="sm" onClick={handleExportCsv}>
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export CSV</span>
+        {/* Right: Primary "+ Add Entry" CTA + "⋮" Sheet Menu */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {fields.length > 0 ? (
+            <Button variant="primary" size="sm" onClick={onAddEntry}>
+              <Plus className="w-4 h-4" />
+              <span>Add Entry</span>
+            </Button>
+          ) : (
+            <Button variant="primary" size="sm" onClick={() => setAddColumnOpen(true)}>
+              <Plus className="w-4 h-4" />
+              <span>Add Column</span>
             </Button>
           )}
 
-          <Button variant="primary" size="sm" onClick={() => setAddColumnOpen(true)}>
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Column</span>
-          </Button>
-        </div>
-      </div>
+          {/* Sheet Actions Menu (⋮) */}
+          <div ref={sheetMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setSheetMenuOpen((prev) => !prev)}
+              className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              aria-label="Sheet options"
+              title="Sheet options"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
 
-      {/* ─── Excel Spreadsheet Grid ─────────────────────────────────── */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20 gap-3 text-slate-400 text-sm">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          Loading sheet...
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse border-b border-slate-200">
-            <thead>
-              <tr className="bg-slate-100/90 text-slate-600 border-b border-slate-200 text-xs font-bold select-none">
-                {/* Sticky Row Number Index Column */}
-                <th className="sticky left-0 z-20 bg-slate-100 px-3 py-2.5 w-12 text-center border-r border-slate-200 text-slate-400 text-[11px] tabular-nums">
-                  #
-                </th>
+            {sheetMenuOpen && (
+              <div
+                className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40"
+                onClick={() => setSheetMenuOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setAddColumnOpen(true)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Plus className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Add Column</span>
+                </button>
 
-                {/* Dynamic Column Headers */}
-                {fields.map((f) => (
-                  <ColumnHeaderCell
-                    key={f.id}
-                    field={f}
-                    onDeleteField={onDeleteField}
-                  />
-                ))}
+                <button
+                  type="button"
+                  onClick={onCustomizeFields}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Manage Columns</span>
+                </button>
 
-                {/* Permanent "+ Column" header cell (Excel / Airtable style) */}
-                <th className="px-3 py-2.5 w-32 text-center border-r border-slate-200 whitespace-nowrap bg-slate-100/70">
+                {filtered.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setAddColumnOpen(true)}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100/80 px-2.5 py-1 rounded transition-colors"
-                    title="Add another column to this sheet"
+                    onClick={handleExportCsv}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Column</span>
+                    <Download className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Export CSV</span>
                   </button>
-                </th>
+                )}
 
-                {/* Row Delete Action Header */}
-                <th className="px-3 py-2.5 w-14 text-center text-[11px] uppercase tracking-wider text-slate-400">
-                  Del
-                </th>
-              </tr>
-            </thead>
+                <div className="my-1 border-t border-slate-100" />
 
-            <tbody>
-              {/* Existing Rows */}
-              {filtered.map((rec, idx) => {
-                const isDeleting = deletingRecordId === rec.id
-                const isEven = idx % 2 === 1
-                return (
-                  <tr
-                    key={rec.id}
-                    className={`group border-b border-slate-200/80 transition-colors ${
-                      isEven ? 'bg-slate-50/40' : 'bg-white'
-                    } hover:bg-amber-50/30`}
-                  >
-                    {/* Sticky Row Index Cell */}
-                    <td
-                      className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-slate-200 text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
-                        isEven ? 'bg-slate-50' : 'bg-white'
-                      } group-hover:bg-amber-50/50`}
-                    >
-                      {String(idx + 1).padStart(2, '0')}
-                    </td>
+                <button
+                  type="button"
+                  onClick={() => onEditSection(section)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Rename Sheet</span>
+                </button>
 
-                    {/* Inline Editable Cells */}
+                <button
+                  type="button"
+                  onClick={() => onDeleteSection(section)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Sheet</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Content Body ───────────────────────────────────────────── */}
+      {fields.length === 0 ? (
+        <EmptyState
+          icon={TableIcon}
+          title={`No columns in ${section.name} yet`}
+          description="Add your first column (such as Item, Date, or Rate) to start logging entries."
+          action={
+            <Button variant="primary" onClick={() => setAddColumnOpen(true)}>
+              <Plus className="w-4 h-4" />
+              Add First Column
+            </Button>
+          }
+        />
+      ) : loading ? (
+        <div className="flex items-center justify-center py-20 gap-3 text-slate-400 text-sm">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          Loading entries...
+        </div>
+      ) : records.length === 0 ? (
+        <EmptyState
+          icon={FileSpreadsheet}
+          title={`No entries in ${section.name} yet`}
+          description={`Start logging records across your ${fields.length} ${fields.length === 1 ? 'column' : 'columns'}.`}
+          action={
+            <Button variant="primary" onClick={onAddEntry}>
+              <Plus className="w-4 h-4" />
+              Add First Entry
+            </Button>
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="No matching entries"
+          description={`No entries in ${section.name} match "${search}".`}
+          action={
+            <Button variant="outline" size="sm" onClick={() => setSearch('')}>
+              Clear Search
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          {/* ─── Mobile Stacked Cards (< 640px) ────────────────────── */}
+          <div className="sm:hidden p-3.5 space-y-3 bg-slate-50/70">
+            {filtered.map((rec, idx) => (
+              <MobileEntryCard
+                key={rec.id}
+                record={rec}
+                index={idx}
+                fields={fields}
+                displayLabels={displayLabels}
+                onEdit={onEditEntry}
+                onDelete={onDeleteRecord}
+                isDeleting={deletingRecordId === rec.id}
+              />
+            ))}
+          </div>
+
+          {/* ─── Desktop / Tablet Spreadsheet Grid (>= 640px) ──────── */}
+          <div className="hidden sm:block relative">
+            <div
+              ref={tableScrollRef}
+              onScroll={checkTableScroll}
+              className="overflow-x-auto"
+            >
+              <table className="w-full text-left border-collapse border-b border-slate-200">
+                <thead>
+                  <tr className="bg-slate-100/90 text-slate-600 border-b border-slate-200 text-xs font-bold select-none">
+                    <th className="sticky left-0 z-20 bg-slate-100 px-3 py-2.5 w-12 text-center border-r border-slate-200 text-slate-400 text-[11px] tabular-nums">
+                      #
+                    </th>
+
                     {fields.map((f) => (
-                      <td
+                      <ColumnHeaderCell
                         key={f.id}
-                        className="p-0 border-r border-slate-200/80 whitespace-nowrap align-middle"
-                      >
-                        <EditableCell
-                          field={f}
-                          value={rec.data?.[String(f.id)]}
-                          onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
-                        />
-                      </td>
+                        field={f}
+                        displayLabel={displayLabels[f.id]}
+                        onDeleteField={onDeleteField}
+                      />
                     ))}
 
-                    {/* Spacer cell under + Column */}
-                    <td className="px-3 py-2 border-r border-slate-200/80 text-center text-slate-200">
-                      ·
-                    </td>
-
-                    {/* Delete Row Button */}
-                    <td className="px-2 py-2 text-center">
+                    <th className="px-3 py-2.5 w-28 text-center border-r border-slate-200 whitespace-nowrap bg-slate-100/70">
                       <button
                         type="button"
-                        disabled={isDeleting}
-                        onClick={() => onDeleteRecord(rec)}
-                        className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Delete Row"
+                        onClick={() => setAddColumnOpen(true)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded transition-colors"
+                        title="Add another column"
                       >
-                        {isDeleting ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
-                        ) : (
-                          <Trash2 className="w-3.5 h-3.5" />
-                        )}
+                        <Plus className="w-3 h-3" />
+                        <span>Column</span>
                       </button>
-                    </td>
+                    </th>
+
+                    <th className="px-3 py-2.5 w-20 text-center text-[11px] uppercase tracking-wider text-slate-400">
+                      Actions
+                    </th>
                   </tr>
-                )
-              })}
+                </thead>
 
-              {/* ─── Persistent Blank Row At Bottom (Click any cell to type) ─── */}
-              <tr className="bg-amber-50/20 hover:bg-amber-50/40 border-b-2 border-dashed border-amber-300 transition-colors">
-                {/* Plus icon indicating new row slot */}
-                <td className="sticky left-0 z-10 px-3 py-2 text-center border-r border-slate-200 bg-amber-50/80 text-amber-600 font-bold text-xs shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
-                  <Plus className="w-3.5 h-3.5 mx-auto" />
-                </td>
+                <tbody>
+                  {filtered.map((rec, idx) => {
+                    const isDeleting = deletingRecordId === rec.id
+                    const isEven = idx % 2 === 1
+                    return (
+                      <tr
+                        key={rec.id}
+                        className={`group border-b border-slate-200/80 transition-colors ${
+                          isEven ? 'bg-slate-50/40' : 'bg-white'
+                        } hover:bg-amber-50/30`}
+                      >
+                        <td
+                          className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-slate-200 text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
+                            isEven ? 'bg-slate-50' : 'bg-white'
+                          } group-hover:bg-amber-50/50`}
+                        >
+                          {String(idx + 1).padStart(2, '0')}
+                        </td>
 
-                {/* Empty cells under each column ready to be typed in */}
-                {fields.map((f) => (
-                  <td
-                    key={f.id}
-                    className="p-0 border-r border-slate-200/80 whitespace-nowrap align-middle"
-                  >
-                    <EditableCell
-                      field={f}
-                      value={draftRow[String(f.id)]}
-                      onSave={(nextVal) => handleDraftCellChange(f.id, nextVal)}
-                      isDraft={true}
-                      placeholder={`+ Type ${f.name.toLowerCase()}...`}
-                    />
-                  </td>
-                ))}
+                        {fields.map((f) => (
+                          <td
+                            key={f.id}
+                            className="p-0 border-r border-slate-200/80 whitespace-nowrap align-middle"
+                          >
+                            <EditableCell
+                              field={f}
+                              value={rec.data?.[String(f.id)]}
+                              onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
+                            />
+                          </td>
+                        ))}
 
-                {/* Spacer */}
-                <td className="px-3 py-2 border-r border-slate-200/80 text-center text-slate-300 text-xs">
-                  ·
-                </td>
+                        <td className="px-3 py-2 border-r border-slate-200/80 text-center text-slate-200">
+                          ·
+                        </td>
 
-                {/* Spacer */}
-                <td className="px-2 py-2 text-center text-slate-300 text-xs">
-                  ·
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                        <td className="px-2 py-2 text-center whitespace-nowrap">
+                          <div className="inline-flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => onEditEntry(rec)}
+                              className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                              title="Edit Entry"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => onDeleteRecord(rec)}
+                              className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete Entry"
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Right-edge scroll hint gradient when table overflows horizontally */}
+            {canScrollRight && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white/95 via-white/60 to-transparent z-20"
+              />
+            )}
+          </div>
+
+          {/* ─── Bottom Status Bar (Sums & Counts) ──────────────────── */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-slate-900 text-slate-200 text-xs font-medium">
+            <div className="flex items-center gap-3">
+              <span className="tabular-nums font-semibold">
+                {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'}
+              </span>
+              <span className="text-slate-600">|</span>
+              <span className="tabular-nums font-semibold text-amber-400">
+                {fields.length} {fields.length === 1 ? 'column' : 'columns'}
+              </span>
+            </div>
+
+            {numericFields.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                {numericFields.map((f) => {
+                  const s = statsByField[f.id]
+                  if (!s) return null
+                  return (
+                    <div key={f.id} className="flex items-center gap-1.5 tabular-nums">
+                      <span className="text-slate-400 text-[11px] uppercase tracking-wider">
+                        {displayLabels[f.id]} SUM:
+                      </span>
+                      <strong className="text-amber-400 font-bold">
+                        {f.fieldType === 'currency'
+                          ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                          : s.sum.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      {/* ─── Excel Bottom Status Bar (Calculations & Totals) ─────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-slate-900 text-slate-200 text-xs font-medium">
-        <div className="flex items-center gap-3">
-          <span className="tabular-nums font-semibold">
-            {filtered.length} {filtered.length === 1 ? 'row' : 'rows'}
-          </span>
-          <span className="text-slate-600">|</span>
-          <span className="tabular-nums font-semibold text-amber-400">
-            {fields.length} {fields.length === 1 ? 'column' : 'columns'}
-          </span>
-        </div>
-
-        {/* Live Sums for Currency / Number columns */}
-        {numericFields.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            {numericFields.map((f) => {
-              const s = statsByField[f.id]
-              if (!s) return null
-              return (
-                <div key={f.id} className="flex items-center gap-1.5 tabular-nums">
-                  <span className="text-slate-400 text-[11px] uppercase tracking-wider">{f.name} SUM:</span>
-                  <strong className="text-amber-400 font-bold">
-                    {f.fieldType === 'currency'
-                      ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-                      : s.sum.toLocaleString('en-IN')}
-                  </strong>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      {/* ─── Sticky Mobile FAB above bottom nav (when entries exist) ── */}
+      {fields.length > 0 && records.length > 0 && (
+        <button
+          type="button"
+          onClick={onAddEntry}
+          className="sm:hidden fixed bottom-20 right-4 z-30 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold px-4 py-3 rounded-full shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-transform"
+          aria-label="Add Entry"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="text-sm">Add Entry</span>
+        </button>
+      )}
 
       {/* Quick Add Column Modal */}
       <QuickAddColumnModal
         open={addColumnOpen}
         onClose={() => setAddColumnOpen(false)}
         onAddColumn={onAddColumn}
+        existingFields={fields}
       />
     </div>
   )

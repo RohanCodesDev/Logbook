@@ -128,13 +128,13 @@ export default function RecordFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={isEditing ? `Edit Row — ${section?.name}` : `Add Row — ${section?.name}`}
+      title={isEditing ? `Edit Entry — ${section?.name}` : `Add Entry — ${section?.name}`}
     >
       <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
         {addNextSuccess && (
           <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-            <span>Row saved! Ready for next entry.</span>
+            <span>Entry saved! Ready for next entry.</span>
           </div>
         )}
 
@@ -316,12 +316,12 @@ export default function RecordFormModal({
             ) : isEditing ? (
               <>
                 <Save className="w-4 h-4" />
-                Update Row
+                Update Entry
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                Save & Close
+                Save Entry
               </>
             )}
           </Button>

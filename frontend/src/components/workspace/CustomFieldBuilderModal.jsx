@@ -43,6 +43,12 @@ export default function CustomFieldBuilderModal({
 
   const fields = section?.fields || []
 
+  const normalizedName = form.name.trim().toLowerCase()
+  const isDuplicateName = Boolean(
+    normalizedName &&
+    fields.some((f) => f.id !== editingId && f.name.trim().toLowerCase() === normalizedName)
+  )
+
   useEffect(() => {
     if (!open) return
     setForm(EMPTY_FIELD)
@@ -261,6 +267,15 @@ export default function CustomFieldBuilderModal({
             />
             Required field when logging a record
           </label>
+
+          {isDuplicateName && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-600" />
+              <span>
+                A column named <strong>"{form.name.trim()}"</strong> already exists. Consider a distinct label (e.g. <em>Start Date</em> / <em>End Date</em>) to avoid confusion on small screens.
+              </span>
+            </p>
+          )}
 
           {error && (
             <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
