@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  MapPin, User, Calendar, Pencil, Plus, Layers,
+  Pencil, Plus, Layers,
   AlertTriangle, Loader2, ArrowLeft
 } from 'lucide-react'
 import Card from '../components/ui/Card'
-import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
 import ConfirmModal from '../components/ui/ConfirmModal'
@@ -266,33 +265,7 @@ export default function ProjectWorkspace() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Compact Project Metadata Strip */}
-      <Card className="py-4 px-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
-            <Badge status={project.status} />
-            <span className="inline-flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-slate-400" />
-              Client: <strong className="text-slate-700 font-medium">{project.client || '—'}</strong>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-              {project.location || 'Location not set'}
-            </span>
-            <span className="inline-flex items-center gap-1.5 tabular-nums">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              Started: {project.startDate || '—'}
-            </span>
-          </div>
-          {project.description && (
-            <p className="text-xs text-slate-500 truncate max-w-md" title={project.description}>
-              {project.description}
-            </p>
-          )}
-        </div>
-      </Card>
-
+    <div className="space-y-4 max-w-7xl mx-auto">
       {/* Sections & Registers */}
       {sections.length === 0 ? (
         <Card noPad>
