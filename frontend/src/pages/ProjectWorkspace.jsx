@@ -287,8 +287,8 @@ export default function ProjectWorkspace() {
         <Card noPad>
           <EmptyState
             icon={Layers}
-            title="Set up your project workspace"
-            description="Create customizable sections like Material Register, Payment Ledger, or Daily Labour Log — or start from scratch with your own fields."
+            title="No sections yet"
+            description="Add custom sections to track materials, expenses, labour, or your own site registers."
             action={
               <Button
                 variant="primary"
