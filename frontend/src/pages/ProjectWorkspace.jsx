@@ -287,15 +287,15 @@ export default function ProjectWorkspace() {
         <Card noPad>
           <EmptyState
             icon={Layers}
-            title="No sections yet"
-            description="Add custom sections to track materials, expenses, labour, or your own site registers."
+            title="No sheets created yet"
+            description="Add spreadsheet registers like Materials, Expenses, or Labour to start logging rows."
             action={
               <Button
                 variant="primary"
                 onClick={() => { setEditingSection(null); setSectionModalOpen(true) }}
               >
                 <Plus className="w-4 h-4" />
-                Add First Section
+                Add First Sheet
               </Button>
             }
           />
@@ -326,6 +326,7 @@ export default function ProjectWorkspace() {
                 onEditRecord={(rec) => { setEditingRecord(rec); setRecordModalOpen(true) }}
                 onDeleteRecord={(rec) => setDeleteRecordTarget(rec)}
                 onCustomizeFields={() => setFieldBuilderOpen(true)}
+                onAddColumnPreset={handleAddField}
                 deletingRecordId={deletingRecordId}
               />
             </Card>
