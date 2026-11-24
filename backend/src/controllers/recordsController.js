@@ -14,7 +14,7 @@ export const getRecordsBySection = async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT * FROM section_records
        WHERE section_id = $1
-       ORDER BY created_at DESC, id DESC`,
+       ORDER BY created_at ASC, id ASC`,
       [req.params.sectionId]
     );
     res.json({ success: true, count: rows.length, data: rows.map(toRecord) });

@@ -13,7 +13,6 @@ import ProjectFormModal from '../components/project/ProjectFormModal'
 import SectionTabs from '../components/workspace/SectionTabs'
 import SectionFormModal from '../components/workspace/SectionFormModal'
 import CustomFieldBuilderModal from '../components/workspace/CustomFieldBuilderModal'
-import RecordFormModal from '../components/workspace/RecordFormModal'
 import RecordRegisterTable from '../components/workspace/RecordRegisterTable'
 import { useToast } from '../components/ui/Toast'
 import { useTopBar } from '../components/layout/AppLayout'
@@ -51,8 +50,6 @@ export default function ProjectWorkspace() {
 
   const [fieldBuilderOpen, setFieldBuilderOpen] = useState(false)
 
-  const [recordModalOpen, setRecordModalOpen]       = useState(false)
-  const [editingRecord, setEditingRecord]           = useState(null)
   const [deleteRecordTarget, setDeleteRecordTarget] = useState(null)
   const [deletingRecordId, setDeletingRecordId]     = useState(null)
 
@@ -192,20 +189,34 @@ export default function ProjectWorkspace() {
     showToast('Field removed')
   }
 
-  const handleSaveRecord = async (data) => {
-    if (editingRecord) {
-      const res = await updateRecord(editingRecord.id, data)
-      setRecords((prev) => prev.map((r) => (r.id === editingRecord.id ? res.data : r)))
-      showToast('Record updated')
-    } else {
+  const handleInlineCreateRecord = async (data) => {
+    try {
       const res = await createRecord(activeSection.id, data)
-      setRecords((prev) => [res.data, ...prev])
+      setRecords((prev) => [...prev, res.data])
       setSections((prev) =>
         prev.map((s) =>
           s.id === activeSection.id ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
         )
       )
-      showToast('Record saved')
+      return res.data
+    } catch (err) {
+      showToast(err.message, 'error')
+      throw err
+    }
+  }
+
+  const handleInlineUpdateRecord = async (recordId, data) => {
+    try {
+      setRecords((prev) =>
+        prev.map((r) => (r.id === recordId ? { ...r, data } : r))
+      )
+      const res = await updateRecord(recordId, data)
+      setRecords((prev) =>
+        prev.map((r) => (r.id === recordId ? res.data : r))
+      )
+    } catch (err) {
+      showToast(err.message, 'error')
+      if (activeSection?.id) loadRecords(activeSection.id)
     }
   }
 
@@ -322,11 +333,11 @@ export default function ProjectWorkspace() {
                 section={activeSection}
                 records={records}
                 loading={loadingRecords}
-                onAddRecord={() => { setEditingRecord(null); setRecordModalOpen(true) }}
-                onEditRecord={(rec) => { setEditingRecord(rec); setRecordModalOpen(true) }}
+                onInlineCreateRecord={handleInlineCreateRecord}
+                onInlineUpdateRecord={handleInlineUpdateRecord}
                 onDeleteRecord={(rec) => setDeleteRecordTarget(rec)}
-                onCustomizeFields={() => setFieldBuilderOpen(true)}
-                onAddColumnPreset={handleAddField}
+                onAddColumn={handleAddField}
+                onDeleteField={handleDeleteField}
                 deletingRecordId={deletingRecordId}
               />
             </Card>
@@ -356,14 +367,6 @@ export default function ProjectWorkspace() {
         onAddField={handleAddField}
         onUpdateField={handleUpdateField}
         onDeleteField={handleDeleteField}
-      />
-
-      <RecordFormModal
-        open={recordModalOpen}
-        onClose={() => setRecordModalOpen(false)}
-        section={activeSection}
-        initialRecord={editingRecord}
-        onSubmit={handleSaveRecord}
       />
 
       <ConfirmModal

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
-  Pencil, Trash2, Search, Download, Plus,
+  Trash2, Search, Download, Plus,
   CheckCircle2, Minus, Loader2,
-  Table as TableIcon, LayoutList, IndianRupee, Hash, Calendar, Type, List, CheckSquare
+  Table as TableIcon, IndianRupee, Hash, Calendar, Type, List, CheckSquare,
+  X, Check, MoreVertical
 } from 'lucide-react'
 import Button from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
@@ -22,86 +23,406 @@ function getFieldIcon(type) {
 }
 
 /**
- * Formats a custom field value cleanly for display
+ * Fast inline cell editor / viewer
  */
-function formatCell(field, rawValue) {
+function EditableCell({
+  field,
+  value,
+  onSave,
+  isDraft = false,
+  placeholder = '',
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [tempVal, setTempVal] = useState(value ?? '')
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    setTempVal(value ?? '')
+  }, [value])
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      if (inputRef.current.select) inputRef.current.select()
+    }
+  }, [isEditing])
+
+  const commitChange = (nextVal) => {
+    setIsEditing(false)
+    const valToSave = nextVal !== undefined ? nextVal : tempVal
+    if (valToSave !== value) {
+      onSave(valToSave)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      commitChange()
+    } else if (e.key === 'Escape') {
+      setTempVal(value ?? '')
+      setIsEditing(false)
+    }
+  }
+
+  // Checkbox: 1-tap direct toggle
   if (field.fieldType === 'checkbox') {
-    return rawValue ? (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
-        <CheckCircle2 className="w-3 h-3" /> Yes
-      </span>
-    ) : (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 text-xs font-medium">
-        <Minus className="w-3 h-3" /> No
-      </span>
-    )
-  }
-
-  if (rawValue === undefined || rawValue === null || rawValue === '') {
-    return <span className="text-slate-300">—</span>
-  }
-
-  if (field.fieldType === 'currency') {
-    const num = Number(rawValue)
-    if (Number.isNaN(num)) return rawValue
+    const isChecked = Boolean(value)
     return (
-      <span className="font-semibold text-slate-900 tabular-nums">
-        ₹{num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-      </span>
+      <div
+        className="w-full h-full flex items-center justify-center p-2 cursor-pointer select-none"
+        onClick={() => onSave(!isChecked)}
+      >
+        <span
+          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+            isChecked
+              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+              : 'bg-slate-100 text-slate-400'
+          }`}
+        >
+          {isChecked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+          <span>{isChecked ? 'Yes' : 'No'}</span>
+        </span>
+      </div>
     )
   }
 
-  if (field.fieldType === 'number') {
-    const num = Number(rawValue)
-    if (Number.isNaN(num)) return rawValue
-    return <span className="tabular-nums font-medium text-slate-800">{num.toLocaleString('en-IN')}</span>
-  }
+  // Active editing state
+  if (isEditing) {
+    if (field.fieldType === 'select') {
+      return (
+        <select
+          ref={inputRef}
+          value={tempVal}
+          onChange={(e) => {
+            setTempVal(e.target.value)
+            commitChange(e.target.value)
+          }}
+          onBlur={() => commitChange()}
+          className="w-full h-10 px-2 py-1 bg-amber-50 text-slate-900 text-sm font-medium border border-amber-400 rounded focus:outline-none"
+        >
+          <option value="">Select...</option>
+          {(field.options || []).map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      )
+    }
 
-  if (field.fieldType === 'select') {
+    if (field.fieldType === 'currency') {
+      return (
+        <div className="relative flex items-center w-full">
+          <span className="absolute left-2 text-xs font-bold text-slate-400 pointer-events-none">₹</span>
+          <input
+            ref={inputRef}
+            type="number"
+            step="any"
+            inputMode="decimal"
+            value={tempVal}
+            onChange={(e) => setTempVal(e.target.value)}
+            onBlur={() => commitChange()}
+            onKeyDown={handleKeyDown}
+            placeholder="0.00"
+            className="w-full h-10 pl-6 pr-2 bg-amber-50 text-slate-900 text-sm font-semibold border border-amber-400 rounded focus:outline-none"
+          />
+        </div>
+      )
+    }
+
+    if (field.fieldType === 'number') {
+      return (
+        <input
+          ref={inputRef}
+          type="number"
+          step="any"
+          inputMode="numeric"
+          value={tempVal}
+          onChange={(e) => setTempVal(e.target.value)}
+          onBlur={() => commitChange()}
+          onKeyDown={handleKeyDown}
+          placeholder="0"
+          className="w-full h-10 px-2 bg-amber-50 text-slate-900 text-sm font-medium border border-amber-400 rounded focus:outline-none"
+        />
+      )
+    }
+
+    if (field.fieldType === 'date') {
+      return (
+        <input
+          ref={inputRef}
+          type="date"
+          value={tempVal}
+          onChange={(e) => {
+            setTempVal(e.target.value)
+            commitChange(e.target.value)
+          }}
+          onBlur={() => commitChange()}
+          onKeyDown={handleKeyDown}
+          className="w-full h-10 px-2 bg-amber-50 text-slate-900 text-sm font-medium border border-amber-400 rounded focus:outline-none"
+        />
+      )
+    }
+
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/60">
-        {rawValue}
-      </span>
+      <input
+        ref={inputRef}
+        type="text"
+        value={tempVal}
+        onChange={(e) => setTempVal(e.target.value)}
+        onBlur={() => commitChange()}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder || 'Type here...'}
+        className="w-full h-10 px-2 bg-amber-50 text-slate-900 text-sm font-medium border border-amber-400 rounded focus:outline-none"
+      />
     )
   }
 
-  return <span className="text-slate-800">{String(rawValue)}</span>
+  // Resting display state: click or tap to edit
+  const hasValue = value !== undefined && value !== null && String(value).trim() !== ''
+
+  return (
+    <div
+      onClick={() => setIsEditing(true)}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          setIsEditing(true)
+        }
+      }}
+      className={`w-full min-h-[42px] px-3 py-2 flex items-center cursor-pointer transition-colors select-none text-sm rounded ${
+        isDraft
+          ? 'text-slate-400 italic hover:bg-amber-50/60 hover:text-slate-700'
+          : 'hover:bg-amber-50/70 text-slate-800'
+      }`}
+    >
+      {!hasValue ? (
+        <span className="text-slate-300 text-xs italic">
+          {placeholder || (isDraft ? '+ Add...' : '—')}
+        </span>
+      ) : field.fieldType === 'currency' ? (
+        <span className="font-semibold text-slate-900 tabular-nums">
+          ₹{Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+        </span>
+      ) : field.fieldType === 'number' ? (
+        <span className="font-medium text-slate-800 tabular-nums">
+          {Number(value).toLocaleString('en-IN')}
+        </span>
+      ) : field.fieldType === 'select' ? (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200/60">
+          {value}
+        </span>
+      ) : (
+        <span className="truncate max-w-xs">{String(value)}</span>
+      )}
+    </div>
+  )
 }
 
 /**
- * Common column quick-starter presets
+ * Quick inline popover to add as many columns as needed
  */
-const COLUMN_PRESETS = [
-  { name: 'Date',         fieldType: 'date',     isRequired: true },
-  { name: 'Item / Scope', fieldType: 'text',     isRequired: true },
-  { name: 'Amount',       fieldType: 'currency', isRequired: true },
-  { name: 'Quantity',     fieldType: 'text',     isRequired: false },
-  { name: 'Party / Vendor', fieldType: 'text',   isRequired: false },
-  { name: 'Status',       fieldType: 'select',   isRequired: false, options: ['Paid', 'Pending', 'In Progress', 'Done'] },
-]
+function QuickAddColumnModal({ open, onClose, onAddColumn }) {
+  const [name, setName] = useState('')
+  const [fieldType, setFieldType] = useState('text')
+  const [optionsText, setOptionsText] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (open) {
+      setName('')
+      setFieldType('text')
+      setOptionsText('')
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [open])
+
+  if (!open) return null
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    setSubmitting(true)
+    try {
+      const options = fieldType === 'select'
+        ? optionsText.split(',').map((s) => s.trim()).filter(Boolean)
+        : []
+      await onAddColumn({
+        name: name.trim(),
+        fieldType,
+        options,
+        isRequired: false,
+      })
+      onClose()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-2xl border border-slate-200 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <h4 className="text-sm font-bold text-slate-900">Add New Column</h4>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+              Column Header Name *
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              required
+              placeholder="e.g. Rate, Vehicle No, Bags, Supplier"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+              Column Data Type
+            </label>
+            <select
+              value={fieldType}
+              onChange={(e) => setFieldType(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+            >
+              <option value="text">Text (General Description, Name)</option>
+              <option value="currency">Currency / Amount (₹)</option>
+              <option value="number">Number / Quantity</option>
+              <option value="date">Date</option>
+              <option value="select">Dropdown Choices</option>
+              <option value="checkbox">Yes / No Checkbox</option>
+            </select>
+          </div>
+
+          {fieldType === 'select' && (
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                Dropdown Options (comma separated)
+              </label>
+              <input
+                type="text"
+                placeholder="Paid, Pending, Partial"
+                value={optionsText}
+                onChange={(e) => setOptionsText(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" disabled={submitting || !name.trim()}>
+              {submitting ? 'Adding...' : 'Add Column'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 /**
- * RecordRegisterTable — Excel-grade spreadsheet with phone-first interaction.
- * Features:
- * - Direct Excel grid with frozen sticky row index (#)
- * - Mobile view toggle: [ ▦ Sheet ] vs [ ☲ Cards ]
- * - Direct "+ Column" header cell to add columns in 1 click
- * - Excel status bar with SUM, COUNT, and AVERAGE
- * - Floating thumb "+ Add Row" FAB on mobile
+ * Column Header with Options (Rename/Delete)
+ */
+function ColumnHeaderCell({ field, onDeleteField }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
+  return (
+    <th
+      ref={menuRef}
+      className="relative px-3.5 py-2.5 border-r border-slate-200 uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap min-w-[140px] group select-none"
+    >
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="inline-flex items-center gap-1.5 min-w-0">
+          {getFieldIcon(field.fieldType)}
+          <span className="truncate">{field.name}</span>
+          {field.isRequired && <span className="text-red-500 text-xs">*</span>}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen((prev) => !prev)}
+          className="p-1 rounded text-slate-300 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+          title="Column Options"
+        >
+          <MoreVertical className="w-3 h-3" />
+        </button>
+      </div>
+
+      {menuOpen && (
+        <div
+          className="absolute left-2 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-30 font-normal lowercase tracking-normal text-left"
+          onClick={() => setMenuOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm(`Delete column "${field.name}"? Data in this column will be removed.`)) {
+                onDeleteField(field.id)
+              }
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete Column</span>
+          </button>
+        </div>
+      )}
+    </th>
+  )
+}
+
+/**
+ * RecordRegisterTable — Pure Excel Experience:
+ * - Empty cells under each column ready to be edited
+ * - Type in empty row at the bottom -> row is saved -> new blank row appears
+ * - Click any existing cell to edit inline
+ * - Permanent "+ Column" button to add as many columns as needed
+ * - Pinned Excel status bar (Sums, Counts, Row totals)
  */
 export default function RecordRegisterTable({
   section,
   records,
   loading,
-  onAddRecord,
-  onEditRecord,
+  onInlineUpdateRecord,
+  onInlineCreateRecord,
   onDeleteRecord,
-  onCustomizeFields,
-  onAddColumnPreset,
+  onAddColumn,
+  onDeleteField,
   deletingRecordId,
 }) {
   const [search, setSearch] = useState('')
-  const [mobileView, setMobileView] = useState('sheet') // 'sheet' | 'cards'
+  const [draftRow, setDraftRow] = useState({})
+  const [addColumnOpen, setAddColumnOpen] = useState(false)
   const fields = section?.fields || []
 
   // Filter across any custom field
@@ -122,8 +443,36 @@ export default function RecordRegisterTable({
       .map((r) => Number(r.data?.[String(f.id)]))
       .filter((n) => !Number.isNaN(n) && n !== 0)
     const sum = numbers.reduce((acc, n) => acc + n, 0)
-    const avg = numbers.length ? sum / numbers.length : 0
-    statsByField[f.id] = { sum, avg, count: numbers.length }
+    statsByField[f.id] = { sum, count: numbers.length }
+  }
+
+  // Handle cell edit on an existing row
+  const handleCellChange = (record, fieldId, nextVal) => {
+    const updatedData = {
+      ...(record.data || {}),
+      [String(fieldId)]: nextVal,
+    }
+    onInlineUpdateRecord(record.id, updatedData)
+  }
+
+  // Handle editing the persistent bottom blank row
+  const handleDraftCellChange = async (fieldId, nextVal) => {
+    const updatedDraft = {
+      ...draftRow,
+      [String(fieldId)]: nextVal,
+    }
+    setDraftRow(updatedDraft)
+
+    // Check if there is meaningful data to commit
+    const hasAnyContent = Object.values(updatedDraft).some(
+      (v) => v !== undefined && v !== null && String(v).trim() !== '' && v !== false
+    )
+
+    if (hasAnyContent) {
+      // Auto-commit new row and clear draft so a new empty row is instantly available!
+      await onInlineCreateRecord(updatedDraft)
+      setDraftRow({})
+    }
   }
 
   const handleExportCsv = () => {
@@ -136,52 +485,44 @@ export default function RecordRegisterTable({
     const csv = [header, ...rows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${(section.name || 'register').toLowerCase().replace(/\s+/g, '-')}.csv`
-    a.click()
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${(section.name || 'register').toLowerCase().replace(/\s+/g, '-')}.csv`
+    link.click()
     URL.revokeObjectURL(url)
   }
 
   // If section has 0 columns, show 1-tap column builder
   if (fields.length === 0) {
     return (
-      <div className="p-6 sm:p-10 text-center space-y-6">
+      <div className="p-8 sm:p-12 text-center space-y-5">
         <div className="max-w-md mx-auto space-y-2">
-          <h3 className="text-lg font-bold text-slate-900">Set Up Columns for {section.name}</h3>
-          <p className="text-xs sm:text-sm text-slate-500">
-            Just like an Excel sheet, start by adding columns. Tap any quick preset below or create your own custom field:
+          <h3 className="text-lg font-bold text-slate-900">Add Columns to {section.name}</h3>
+          <p className="text-sm text-slate-500">
+            Just like Excel, add columns to structure your records. You can add as many columns as needed.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 max-w-lg mx-auto">
-          {COLUMN_PRESETS.map((p) => (
-            <button
-              key={p.name}
-              type="button"
-              onClick={() => onAddColumnPreset?.(p)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 text-slate-700 transition-colors shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5 text-amber-500" />
-              <span>{p.name}</span>
-            </button>
-          ))}
-        </div>
-
         <div>
-          <Button variant="primary" onClick={onCustomizeFields}>
+          <Button variant="primary" onClick={() => setAddColumnOpen(true)}>
             <Plus className="w-4 h-4" />
-            Custom Column Builder
+            Add First Column
           </Button>
         </div>
+
+        <QuickAddColumnModal
+          open={addColumnOpen}
+          onClose={() => setAddColumnOpen(false)}
+          onAddColumn={onAddColumn}
+        />
       </div>
     )
   }
 
   return (
     <div className="relative">
-      {/* ─── Excel Spreadsheet Header & Toolbar ──────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 sm:px-6 py-3.5 border-b border-slate-200 bg-white">
+      {/* ─── Excel Spreadsheet Header & Controls ──────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
         {/* Search */}
         <div className="relative flex items-center w-full sm:max-w-xs">
           <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -189,290 +530,209 @@ export default function RecordRegisterTable({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${section.name}...`}
+            placeholder={`Search in ${section.name}...`}
             className="w-full pl-9 pr-4 py-1.5 rounded-lg bg-slate-100 text-sm text-slate-800 placeholder-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
           />
         </div>
 
         {/* Toolbar Controls */}
-        <div className="flex items-center justify-between sm:justify-end gap-2">
-          {/* Mobile View Toggle: Sheet vs Cards */}
-          <div className="sm:hidden flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setMobileView('sheet')}
-              className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 ${
-                mobileView === 'sheet'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Spreadsheet Grid View"
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-              <span>Grid</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileView('cards')}
-              className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 ${
-                mobileView === 'cards'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-              title="Card View"
-            >
-              <LayoutList className="w-3.5 h-3.5" />
-              <span>Cards</span>
-            </button>
-          </div>
-
-          <Button variant="outline" size="sm" onClick={onCustomizeFields} className="hidden sm:inline-flex">
-            Columns ({fields.length})
-          </Button>
-
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           {filtered.length > 0 && (
             <Button variant="outline" size="sm" onClick={handleExportCsv}>
               <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">CSV</span>
+              <span className="hidden sm:inline">Export CSV</span>
             </Button>
           )}
 
-          <Button variant="primary" size="sm" onClick={onAddRecord}>
+          <Button variant="primary" size="sm" onClick={() => setAddColumnOpen(true)}>
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Row</span>
+            <span>Add Column</span>
           </Button>
         </div>
       </div>
 
-      {/* ─── Body: Loading / Empty / Data ────────────────────────────── */}
+      {/* ─── Excel Spreadsheet Grid ─────────────────────────────────── */}
       {loading ? (
         <div className="flex items-center justify-center py-20 gap-3 text-slate-400 text-sm">
           <Loader2 className="w-5 h-5 animate-spin" />
-          Loading spreadsheet...
+          Loading sheet...
         </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={TableIcon}
-          title={records.length === 0 ? `No rows in ${section.name}` : 'No matching rows found'}
-          description={
-            records.length === 0
-              ? 'Tap "Add Row" below to log your first record.'
-              : 'Clear your search term to see all entries.'
-          }
-          action={
-            records.length === 0 ? (
-              <Button variant="primary" size="sm" onClick={onAddRecord}>
-                <Plus className="w-3.5 h-3.5" />
-                Add First Row
-              </Button>
-            ) : null
-          }
-        />
       ) : (
-        <>
-          {/* ─── View 1: Card View on Mobile (when Cards selected) ─────── */}
-          {mobileView === 'cards' && (
-            <div className="sm:hidden divide-y divide-slate-100">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse border-b border-slate-200">
+            <thead>
+              <tr className="bg-slate-100/90 text-slate-600 border-b border-slate-200 text-xs font-bold select-none">
+                {/* Sticky Row Number Index Column */}
+                <th className="sticky left-0 z-20 bg-slate-100 px-3 py-2.5 w-12 text-center border-r border-slate-200 text-slate-400 text-[11px] tabular-nums">
+                  #
+                </th>
+
+                {/* Dynamic Column Headers */}
+                {fields.map((f) => (
+                  <ColumnHeaderCell
+                    key={f.id}
+                    field={f}
+                    onDeleteField={onDeleteField}
+                  />
+                ))}
+
+                {/* Permanent "+ Column" header cell (Excel / Airtable style) */}
+                <th className="px-3 py-2.5 w-32 text-center border-r border-slate-200 whitespace-nowrap bg-slate-100/70">
+                  <button
+                    type="button"
+                    onClick={() => setAddColumnOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100/80 px-2.5 py-1 rounded transition-colors"
+                    title="Add another column to this sheet"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Column</span>
+                  </button>
+                </th>
+
+                {/* Row Delete Action Header */}
+                <th className="px-3 py-2.5 w-14 text-center text-[11px] uppercase tracking-wider text-slate-400">
+                  Del
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {/* Existing Rows */}
               {filtered.map((rec, idx) => {
                 const isDeleting = deletingRecordId === rec.id
+                const isEven = idx % 2 === 1
                 return (
-                  <div
+                  <tr
                     key={rec.id}
-                    onClick={() => onEditRecord(rec)}
-                    className="p-4 space-y-3 active:bg-amber-50/50 hover:bg-slate-50 transition-colors cursor-pointer"
+                    className={`group border-b border-slate-200/80 transition-colors ${
+                      isEven ? 'bg-slate-50/40' : 'bg-white'
+                    } hover:bg-amber-50/30`}
                   >
-                    <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                      <span className="text-xs font-bold text-slate-500 tabular-nums">
-                        #{String(idx + 1).padStart(2, '0')}
-                      </span>
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => onEditRecord(rec)}
-                          className="px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isDeleting}
-                          onClick={() => onDeleteRecord(rec)}
-                          className="px-2 py-1 text-xs text-red-500 hover:bg-red-50 rounded"
-                        >
-                          {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
+                    {/* Sticky Row Index Cell */}
+                    <td
+                      className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-slate-200 text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
+                        isEven ? 'bg-slate-50' : 'bg-white'
+                      } group-hover:bg-amber-50/50`}
+                    >
+                      {String(idx + 1).padStart(2, '0')}
+                    </td>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {fields.map((f) => (
-                        <div key={f.id} className={f.fieldType === 'textarea' ? 'col-span-2' : ''}>
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
-                            {f.name}
-                          </span>
-                          <span className="text-sm font-medium">
-                            {formatCell(f, rec.data?.[String(f.id)])}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                    {/* Inline Editable Cells */}
+                    {fields.map((f) => (
+                      <td
+                        key={f.id}
+                        className="p-0 border-r border-slate-200/80 whitespace-nowrap align-middle"
+                      >
+                        <EditableCell
+                          field={f}
+                          value={rec.data?.[String(f.id)]}
+                          onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
+                        />
+                      </td>
+                    ))}
+
+                    {/* Spacer cell under + Column */}
+                    <td className="px-3 py-2 border-r border-slate-200/80 text-center text-slate-200">
+                      ·
+                    </td>
+
+                    {/* Delete Row Button */}
+                    <td className="px-2 py-2 text-center">
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={() => onDeleteRecord(rec)}
+                        className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        title="Delete Row"
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
                 )
               })}
-            </div>
-          )}
 
-          {/* ─── View 2: Excel Spreadsheet Grid (Desktop & Mobile Grid) ── */}
-          <div className={`${mobileView === 'cards' ? 'hidden sm:block' : 'block'} overflow-x-auto`}>
-            <table className="w-full text-left border-collapse border-b border-slate-200">
-              <thead>
-                <tr className="bg-slate-100/90 text-slate-600 border-b border-slate-200 text-xs font-bold select-none">
-                  {/* Sticky Row Number Index Column */}
-                  <th className="sticky left-0 z-20 bg-slate-100 px-3 py-2.5 w-12 text-center border-r border-slate-200 text-slate-400 text-[11px] tabular-nums">
-                    #
-                  </th>
+              {/* ─── Persistent Blank Row At Bottom (Click any cell to type) ─── */}
+              <tr className="bg-amber-50/20 hover:bg-amber-50/40 border-b-2 border-dashed border-amber-300 transition-colors">
+                {/* Plus icon indicating new row slot */}
+                <td className="sticky left-0 z-10 px-3 py-2 text-center border-r border-slate-200 bg-amber-50/80 text-amber-600 font-bold text-xs shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]">
+                  <Plus className="w-3.5 h-3.5 mx-auto" />
+                </td>
 
-                  {/* Dynamic Column Headers */}
-                  {fields.map((f) => (
-                    <th
-                      key={f.id}
-                      className="px-4 py-2.5 border-r border-slate-200 uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap min-w-[130px]"
-                    >
-                      <div className="inline-flex items-center gap-1.5">
-                        {getFieldIcon(f.fieldType)}
-                        <span>{f.name}</span>
-                        {f.isRequired && <span className="text-red-500 text-xs">*</span>}
-                      </div>
-                    </th>
-                  ))}
+                {/* Empty cells under each column ready to be typed in */}
+                {fields.map((f) => (
+                  <td
+                    key={f.id}
+                    className="p-0 border-r border-slate-200/80 whitespace-nowrap align-middle"
+                  >
+                    <EditableCell
+                      field={f}
+                      value={draftRow[String(f.id)]}
+                      onSave={(nextVal) => handleDraftCellChange(f.id, nextVal)}
+                      isDraft={true}
+                      placeholder={`+ Type ${f.name.toLowerCase()}...`}
+                    />
+                  </td>
+                ))}
 
-                  {/* Add Column Button cell right in the header row */}
-                  <th className="px-3 py-2.5 w-28 text-center border-r border-slate-200 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={onCustomizeFields}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 hover:text-amber-800 hover:bg-amber-100/70 px-2 py-1 rounded transition-colors"
-                      title="Add or Customize Columns"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Column</span>
-                    </button>
-                  </th>
+                {/* Spacer */}
+                <td className="px-3 py-2 border-r border-slate-200/80 text-center text-slate-300 text-xs">
+                  ·
+                </td>
 
-                  {/* Actions Column */}
-                  <th className="px-3 py-2.5 w-16 text-center text-[11px] uppercase tracking-wider text-slate-400">
-                    Del
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filtered.map((rec, idx) => {
-                  const isDeleting = deletingRecordId === rec.id
-                  const isEven = idx % 2 === 1
-                  return (
-                    <tr
-                      key={rec.id}
-                      onClick={() => onEditRecord(rec)}
-                      className={`group border-b border-slate-200/80 cursor-pointer transition-colors ${
-                        isEven ? 'bg-slate-50/40' : 'bg-white'
-                      } hover:bg-amber-50/50`}
-                    >
-                      {/* Sticky Row Number Cell */}
-                      <td
-                        className={`sticky left-0 z-10 px-3 py-3 text-center border-r border-slate-200 text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
-                          isEven ? 'bg-slate-50' : 'bg-white'
-                        } group-hover:bg-amber-50`}
-                      >
-                        {String(idx + 1).padStart(2, '0')}
-                      </td>
-
-                      {/* Data Cells */}
-                      {fields.map((f) => (
-                        <td
-                          key={f.id}
-                          className="px-4 py-3 text-sm text-slate-800 border-r border-slate-200/80 whitespace-nowrap max-w-xs truncate"
-                        >
-                          {formatCell(f, rec.data?.[String(f.id)])}
-                        </td>
-                      ))}
-
-                      {/* Spacer matching + Column header */}
-                      <td className="px-3 py-3 border-r border-slate-200/80 text-center">
-                        <span className="text-slate-300 text-xs">·</span>
-                      </td>
-
-                      {/* Row Delete Button */}
-                      <td
-                        className="px-2 py-3 text-center"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          disabled={isDeleting}
-                          onClick={() => onDeleteRecord(rec)}
-                          className="p-1.5 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          title="Delete row"
-                        >
-                          {isDeleting ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
-                          ) : (
-                            <Trash2 className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ─── Excel Bottom Status / Summary Bar ─────────────────────── */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-slate-900 text-slate-200 text-xs font-medium">
-            <div className="flex items-center gap-4">
-              <span className="tabular-nums">
-                <strong>{filtered.length}</strong> {filtered.length === 1 ? 'row' : 'rows'}
-              </span>
-              <span className="text-slate-600">|</span>
-              <span className="tabular-nums">
-                <strong>{fields.length}</strong> columns
-              </span>
-            </div>
-
-            {/* Live sums for currency/number columns */}
-            {numericFields.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                {numericFields.map((f) => {
-                  const s = statsByField[f.id]
-                  if (!s) return null
-                  return (
-                    <div key={f.id} className="flex items-center gap-1.5 tabular-nums">
-                      <span className="text-slate-400 text-[11px] uppercase">{f.name} SUM:</span>
-                      <strong className="text-amber-400 font-bold">
-                        {f.fieldType === 'currency'
-                          ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-                          : s.sum.toLocaleString('en-IN')}
-                      </strong>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </>
+                {/* Spacer */}
+                <td className="px-2 py-2 text-center text-slate-300 text-xs">
+                  ·
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* ─── Mobile Floating Action Button (FAB) ────────────────────── */}
-      <button
-        type="button"
-        onClick={onAddRecord}
-        className="lg:hidden fixed bottom-20 right-4 z-40 bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 active:scale-95 transition-transform"
-        aria-label="Add Row"
-      >
-        <Plus className="w-5 h-5" />
-        <span className="text-sm font-semibold pr-1">Add Row</span>
-      </button>
+      {/* ─── Excel Bottom Status Bar (Calculations & Totals) ─────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-slate-900 text-slate-200 text-xs font-medium">
+        <div className="flex items-center gap-3">
+          <span className="tabular-nums font-semibold">
+            {filtered.length} {filtered.length === 1 ? 'row' : 'rows'}
+          </span>
+          <span className="text-slate-600">|</span>
+          <span className="tabular-nums font-semibold text-amber-400">
+            {fields.length} {fields.length === 1 ? 'column' : 'columns'}
+          </span>
+        </div>
+
+        {/* Live Sums for Currency / Number columns */}
+        {numericFields.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+            {numericFields.map((f) => {
+              const s = statsByField[f.id]
+              if (!s) return null
+              return (
+                <div key={f.id} className="flex items-center gap-1.5 tabular-nums">
+                  <span className="text-slate-400 text-[11px] uppercase tracking-wider">{f.name} SUM:</span>
+                  <strong className="text-amber-400 font-bold">
+                    {f.fieldType === 'currency'
+                      ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                      : s.sum.toLocaleString('en-IN')}
+                  </strong>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Add Column Modal */}
+      <QuickAddColumnModal
+        open={addColumnOpen}
+        onClose={() => setAddColumnOpen(false)}
+        onAddColumn={onAddColumn}
+      />
     </div>
   )
 }
