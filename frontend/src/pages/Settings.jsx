@@ -125,7 +125,7 @@ export default function Settings() {
                 <p className="text-xs opacity-80">
                   {dbConnected
                     ? `Response latency: ${health.database.latencyMs} ms`
-                    : (health?.message || 'Ensure backend server is running on port 5000')}
+                    : (health?.message || 'Unable to reach the backend API service')}
                 </p>
               </div>
             </div>

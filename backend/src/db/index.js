@@ -5,19 +5,20 @@ dotenv.config();
 
 const { Pool } = pg;
 
+if (!process.env.DATABASE_URL) {
+  console.warn('[DB] Warning: DATABASE_URL is not set.');
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false, // Required for Neon hosted PostgreSQL
-  },
-  max: 10,              // Max connections in pool
+  ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+  max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
 
-// Test connection on startup
 pool.on('connect', () => {
-  console.log('[DB] Connected to Neon PostgreSQL');
+  console.log('[DB] Connected to PostgreSQL');
 });
 
 pool.on('error', (err) => {
