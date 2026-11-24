@@ -1,9 +1,9 @@
 const variants = {
-  primary: 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm shadow-amber-500/30 active:scale-95',
-  secondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95',
+  primary: 'bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-hover)] shadow-sm shadow-amber-700/15 active:scale-95',
+  secondary: 'bg-[var(--bg-input)] text-[var(--text-primary)] hover:bg-[#E6E1D6] active:scale-95',
   danger: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 active:scale-95',
-  ghost: 'text-slate-600 hover:bg-slate-100 active:scale-95',
-  outline: 'border border-slate-300 text-slate-700 hover:bg-slate-50 active:scale-95',
+  ghost: 'text-slate-600 hover:bg-[var(--bg-input)] active:scale-95',
+  outline: 'border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:bg-[var(--bg-input)] active:scale-95',
 }
 
 const sizes = {

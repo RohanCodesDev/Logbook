@@ -369,15 +369,15 @@ function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl border border-slate-200 space-y-4"
+        className="w-full sm:max-w-sm bg-[var(--bg-card)] rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl border border-[var(--border-subtle)] space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sm:hidden flex justify-center -mt-2">
-          <div className="w-10 h-1 rounded-full bg-slate-200" />
+          <div className="w-10 h-1 rounded-full bg-[#D8D1C4]" />
         </div>
 
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h4 className="text-sm font-bold text-slate-900">Add New Column</h4>
+        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
+          <h4 className="text-sm font-bold text-[var(--text-primary)]">Add New Column</h4>
           <button type="button" onClick={onClose} className="p-1.5 -mr-1 rounded-lg text-slate-400 hover:text-slate-600">
             <X className="w-4 h-4" />
           </button>
@@ -395,7 +395,7 @@ function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }
               placeholder="e.g. Rate, Start Date, Vendor, Hours"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full px-3 py-2.5 text-sm border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E08A1E]"
             />
 
             {isDuplicate && (
@@ -418,7 +418,7 @@ function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }
                 setTypeTouched(true)
                 setFieldType(e.target.value)
               }}
-              className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+              className="w-full px-3 py-2.5 text-sm border border-[var(--border-subtle)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E08A1E] bg-[var(--bg-card)]"
             >
               <option value="text">Text (Description, Machine, Name)</option>
               <option value="currency">Currency / Rate (₹)</option>
@@ -578,13 +578,13 @@ function MobileEntryCard({
           onEdit(record)
         }
       }}
-      className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-xs active:scale-[0.99] transition-all cursor-pointer space-y-3"
+      className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-subtle)] p-4 shadow-xs active:scale-[0.99] transition-all cursor-pointer space-y-3"
     >
       {/* Card Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-0.5">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold tabular-nums">
+            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-[var(--bg-input)] text-slate-600 text-[10px] font-bold tabular-nums">
               #{String(index + 1).padStart(2, '0')}
             </span>
             {headlineField && (
@@ -757,7 +757,7 @@ export default function RecordRegisterTable({
   return (
     <div className="relative">
       {/* ─── Sheet Toolbar ──────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white">
+      <div className="flex items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-card)]">
         {/* Left: Search (when entries exist) or Sheet Title */}
         {fields.length > 0 && records.length > 0 ? (
           <div className="relative flex items-center flex-1 sm:max-w-xs min-w-0">
@@ -767,13 +767,13 @@ export default function RecordRegisterTable({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={`Search ${section.name}...`}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-100 text-sm text-slate-800 placeholder-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-[var(--bg-input)] text-sm text-[var(--text-primary)] placeholder-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-[#E08A1E] focus:bg-[var(--bg-card)] transition-all"
             />
           </div>
         ) : (
           <div className="flex items-center gap-2 min-w-0">
-            <FileSpreadsheet className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <span className="text-sm font-bold text-slate-800 truncate">{section.name}</span>
+            <FileSpreadsheet className="w-4 h-4 text-[#E08A1E] flex-shrink-0" />
+            <span className="text-sm font-bold text-[var(--text-primary)] truncate">{section.name}</span>
             <span className="text-xs text-slate-400 font-medium flex-shrink-0">
               {fields.length} {fields.length === 1 ? 'col' : 'cols'}
             </span>
@@ -804,7 +804,7 @@ export default function RecordRegisterTable({
             <button
               type="button"
               onClick={() => setSheetMenuOpen((prev) => !prev)}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] text-slate-600 hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)] transition-colors"
               aria-label="Sheet options"
               title="Sheet options"
             >
@@ -813,7 +813,7 @@ export default function RecordRegisterTable({
 
             {sheetMenuOpen && (
               <div
-                className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40"
+                className="absolute right-0 top-full mt-1.5 w-48 bg-[var(--bg-card)] rounded-xl shadow-xl border border-[var(--border-subtle)] py-1.5 z-40"
                 onClick={() => setSheetMenuOpen(false)}
               >
                 <button
@@ -914,7 +914,7 @@ export default function RecordRegisterTable({
       ) : (
         <>
           {/* ─── Mobile Stacked Cards (< 640px) ────────────────────── */}
-          <div className="sm:hidden p-3.5 space-y-3 bg-slate-50/70">
+          <div className="sm:hidden p-3.5 space-y-3 bg-[var(--bg-canvas)]/70">
             {filtered.map((rec, idx) => (
               <MobileEntryCard
                 key={rec.id}
@@ -959,10 +959,10 @@ export default function RecordRegisterTable({
               onScroll={checkTableScroll}
               className="overflow-x-auto"
             >
-              <table className="w-full text-left border-collapse border-b border-slate-200">
+              <table className="w-full text-left border-collapse border-b border-[var(--border-subtle)]">
                 <thead>
-                  <tr className="bg-slate-100/90 text-slate-600 border-b border-slate-200 text-xs font-bold select-none">
-                    <th className="sticky left-0 z-20 bg-slate-100 px-3 py-2.5 w-12 text-center border-r border-slate-200 text-slate-400 text-[11px] tabular-nums">
+                  <tr className="bg-[var(--bg-input)]/80 text-slate-600 border-b border-[var(--border-subtle)] text-xs font-bold select-none">
+                    <th className="sticky left-0 z-20 bg-[var(--bg-input)] px-3 py-2.5 w-12 text-center border-r border-[var(--border-subtle)] text-slate-500 text-[11px] tabular-nums">
                       #
                     </th>
 
@@ -975,11 +975,11 @@ export default function RecordRegisterTable({
                       />
                     ))}
 
-                    <th className="px-3 py-2.5 w-28 text-center border-r border-slate-200 whitespace-nowrap bg-slate-100/70">
+                    <th className="px-3 py-2.5 w-28 text-center border-r border-[var(--border-subtle)] whitespace-nowrap bg-[var(--bg-input)]/60">
                       <button
                         type="button"
                         onClick={() => setAddColumnOpen(true)}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded transition-colors"
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-[#C97814] hover:bg-[#FEF6E9] px-2 py-1 rounded transition-colors"
                         title="Add another column"
                       >
                         <Plus className="w-3 h-3" />
@@ -987,7 +987,7 @@ export default function RecordRegisterTable({
                       </button>
                     </th>
 
-                    <th className="px-3 py-2.5 w-20 text-center text-[11px] uppercase tracking-wider text-slate-400">
+                    <th className="px-3 py-2.5 w-20 text-center text-[11px] uppercase tracking-wider text-slate-500">
                       Actions
                     </th>
                   </tr>
@@ -1000,14 +1000,14 @@ export default function RecordRegisterTable({
                     return (
                       <tr
                         key={rec.id}
-                        className={`group border-b border-slate-200/80 transition-colors ${
-                          isEven ? 'bg-slate-50/40' : 'bg-white'
-                        } hover:bg-amber-50/30`}
+                        className={`group border-b border-[var(--border-subtle)] transition-colors ${
+                          isEven ? 'bg-[#F6F4EF]/55' : 'bg-[var(--bg-card)]'
+                        } hover:bg-[#FEF6E9]/60`}
                       >
                         <td
-                          className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-slate-200 text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
-                            isEven ? 'bg-slate-50' : 'bg-white'
-                          } group-hover:bg-amber-50/50`}
+                          className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-[var(--border-subtle)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
+                            isEven ? 'bg-[#F6F4EF]' : 'bg-[var(--bg-card)]'
+                          } group-hover:bg-[#FEF6E9]`}
                         >
                           {String(idx + 1).padStart(2, '0')}
                         </td>
@@ -1015,7 +1015,7 @@ export default function RecordRegisterTable({
                         {fields.map((f) => (
                           <td
                             key={f.id}
-                            className="p-0 border-r border-slate-200/80 whitespace-nowrap align-middle"
+                            className="p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle"
                           >
                             <EditableCell
                               field={f}
@@ -1065,19 +1065,19 @@ export default function RecordRegisterTable({
             {canScrollRight && (
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white/95 via-white/60 to-transparent z-20"
+                className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#FCFBF8]/95 via-[#FCFBF8]/60 to-transparent z-20"
               />
             )}
           </div>
 
           {/* ─── Desktop Status Bar (Sums & Counts) ─────────────────── */}
-          <div className="hidden sm:flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-slate-900 text-slate-200 text-xs font-medium">
+          <div className="hidden sm:flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-[#1E242B] text-slate-200 text-xs font-medium">
             <div className="flex items-center gap-3">
               <span className="tabular-nums font-semibold">
                 {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'}
               </span>
               <span className="text-slate-600">|</span>
-              <span className="tabular-nums font-semibold text-amber-400">
+              <span className="tabular-nums font-semibold text-[#F2A649]">
                 {fields.length} {fields.length === 1 ? 'column' : 'columns'}
               </span>
             </div>
@@ -1092,7 +1092,7 @@ export default function RecordRegisterTable({
                       <span className="text-slate-400 text-[11px] uppercase tracking-wider">
                         {displayLabels[f.id]} SUM:
                       </span>
-                      <strong className="text-amber-400 font-bold">
+                      <strong className="text-[#F2A649] font-bold">
                         {s.isCurrency
                           ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
                           : s.sum.toLocaleString('en-IN')}
@@ -1111,7 +1111,7 @@ export default function RecordRegisterTable({
         <button
           type="button"
           onClick={onAddEntry}
-          className="sm:hidden fixed bottom-20 right-4 z-30 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold px-4 py-3 rounded-full shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-transform"
+          className="sm:hidden fixed bottom-20 right-4 z-30 bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] active:scale-95 text-white font-bold px-4 py-3 rounded-full shadow-lg shadow-amber-700/25 flex items-center gap-2 transition-transform"
           aria-label="Add Entry"
         >
           <Plus className="w-5 h-5" />

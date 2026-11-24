@@ -53,7 +53,7 @@ export default function ActionMenu({ items = [], label = 'More actions' }) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-1.5 w-44 origin-top-right rounded-xl bg-white shadow-lg ring-1 ring-slate-200 py-1.5 z-40"
+          className="absolute right-0 mt-1.5 w-44 origin-top-right rounded-xl bg-[var(--bg-card)] shadow-lg ring-1 ring-[var(--border-subtle)] py-1.5 z-40"
         >
           {items.map((item, idx) => {
             const Icon = item.icon

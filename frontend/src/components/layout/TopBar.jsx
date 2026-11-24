@@ -14,14 +14,14 @@ export default function TopBar({ actions = null, customTitle = null, onOpenMenu 
   const currentLabel = customTitle || (isWorkspace ? 'Project Workspace' : routeLabels[location.pathname] ?? 'Overview')
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-3 h-14 sm:h-16 px-4 sm:px-6 lg:px-8 bg-white/95 backdrop-blur-md border-b border-slate-200/80">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-3 h-14 sm:h-16 px-4 sm:px-6 lg:px-8 bg-[#FCFBF8]/95 backdrop-blur-md border-b border-[var(--border-subtle)]">
       {/* Left: Menu trigger on mobile + Minimal Breadcrumb */}
       <div className="flex items-center gap-2 min-w-0">
         {!isWorkspace && (
           <button
             type="button"
             onClick={onOpenMenu}
-            className="lg:hidden inline-flex items-center justify-center w-9 h-9 -ml-1 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex-shrink-0"
+            className="lg:hidden inline-flex items-center justify-center w-9 h-9 -ml-1 rounded-xl text-slate-600 hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
             aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />
@@ -31,7 +31,7 @@ export default function TopBar({ actions = null, customTitle = null, onOpenMenu 
         {isWorkspace && (
           <Link
             to="/projects"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors flex-shrink-0"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--bg-input)] text-slate-600 hover:bg-[#E6E1D6] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
             title="Back to Your Projects"
           >
             <ArrowLeft className="w-4 h-4" />

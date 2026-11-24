@@ -5,7 +5,7 @@ export default function EmptyState({ icon: Icon, title, description, action }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
       {Icon && (
-        <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200/70 flex items-center justify-center mb-4">
+        <div className="w-14 h-14 rounded-2xl bg-[var(--bg-input)] border border-[var(--border-subtle)] flex items-center justify-center mb-4">
           <Icon className="w-6 h-6 text-slate-400" />
         </div>
       )}

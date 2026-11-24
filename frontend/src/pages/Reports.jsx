@@ -100,7 +100,7 @@ export default function Reports() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80">
+                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-input)]/70">
                   <th className="pl-6 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Project</th>
                   <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Status</th>
                   <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-right">Sections</th>
@@ -146,7 +146,7 @@ export default function Reports() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80">
+                <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-input)]/70">
                   <th className="pl-6 pr-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Section Name</th>
                   <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Project</th>
                   <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-right">Fields</th>

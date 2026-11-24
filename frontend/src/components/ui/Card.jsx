@@ -1,10 +1,9 @@
 /**
- * Card — generic white surface with optional padding and shadow.
- * Usage: <Card className="...">...</Card>
+ * Card — Soft Alabaster surface with Light Stone border and optional padding.
  */
 export default function Card({ children, className = '', noPad = false }) {
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm ${noPad ? '' : 'p-6'} ${className}`}>
+    <div className={`bg-[var(--bg-card)] rounded-2xl border border-[var(--border-subtle)] shadow-sm ${noPad ? '' : 'p-6'} ${className}`}>
       {children}
     </div>
   )

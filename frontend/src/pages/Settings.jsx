@@ -138,7 +138,7 @@ export default function Settings() {
                   { label: 'Custom Fields', value: health.database.counts.fields },
                   { label: 'Records',       value: health.database.counts.records },
                 ].map((item) => (
-                  <div key={item.label} className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div key={item.label} className="p-3 rounded-xl bg-[var(--bg-input)]/70 border border-[var(--border-subtle)]">
                     <p className="text-xl font-bold text-slate-900 tabular-nums">{item.value}</p>
                     <p className="text-xs text-slate-500">{item.label}</p>
                   </div>

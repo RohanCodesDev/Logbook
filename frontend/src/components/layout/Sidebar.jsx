@@ -64,14 +64,14 @@ export default function Sidebar({ open = false, onClose }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-slate-900 text-white border-r border-slate-800 transform transition-transform duration-200 ease-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-[#1E242B] text-white border-r border-[#2C333C] transform transition-transform duration-200 ease-out lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand */}
-        <div className="flex items-center justify-between gap-2 px-5 py-5 border-b border-slate-800">
+        <div className="flex items-center justify-between gap-2 px-5 py-5 border-b border-[#2C333C]">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-500 shadow-lg shadow-amber-500/25 flex-shrink-0">
+            <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--accent-primary)] shadow-lg shadow-amber-700/20 flex-shrink-0">
               <HardHat className="w-5 h-5 text-white" />
             </span>
             <div className="leading-tight min-w-0">

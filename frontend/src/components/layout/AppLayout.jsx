@@ -32,7 +32,7 @@ export default function AppLayout({ children }) {
   return (
     <ToastProvider>
       <TopBarContext.Provider value={{ setTopBar, clearTopBar }}>
-        <div className="flex min-h-screen bg-slate-50">
+        <div className="flex min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)]">
           <Sidebar open={mobileNavOpen} onClose={closeMobileNav} />
 
           <div className="flex-1 flex flex-col lg:ml-64 min-h-screen min-w-0">

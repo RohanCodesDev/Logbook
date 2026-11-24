@@ -1,17 +1,17 @@
 const variants = {
-  active:     'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-  paused:     'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
-  completed:  'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
-  archived:   'bg-slate-100 text-slate-500 ring-1 ring-slate-200',
-  planning:   'bg-purple-50 text-purple-700 ring-1 ring-purple-200',
+  active:    'bg-[#DCFCE7] text-[#166534] ring-1 ring-[#BBF7D0]',
+  paused:    'bg-[#FEF3C7] text-[#92400E] ring-1 ring-[#FDE68A]',
+  completed: 'bg-[#DBEAFE] text-[#1E40AF] ring-1 ring-[#BFDBFE]',
+  archived:  'bg-[#EFECE4] text-[#57534E] ring-1 ring-[#E6E1D6]',
+  planning:  'bg-[#EDE9FE] text-[#5B21B6] ring-1 ring-[#DDD6FE]',
 }
 
 const dots = {
-  active:    'bg-emerald-500',
-  paused:    'bg-amber-500',
-  completed: 'bg-blue-500',
-  archived:  'bg-slate-400',
-  planning:  'bg-purple-500',
+  active:    'bg-[#16A34A]',
+  paused:    'bg-[#D97706]',
+  completed: 'bg-[#2563EB]',
+  archived:  'bg-[#78716C]',
+  planning:  'bg-[#7C3AED]',
 }
 
 export default function Badge({ status = 'active', label }) {

@@ -56,7 +56,7 @@ export default function ProjectsTable({
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50/80">
+            <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-input)]/70">
               {columns.map((col, idx) => (
                 <th
                   key={col.label || idx}

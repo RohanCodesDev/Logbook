@@ -1,5 +1,5 @@
 export const inputClass =
-  'w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-base sm:text-sm text-slate-900 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition-all'
+  'w-full px-3.5 py-2.5 rounded-xl border border-[var(--border-subtle)] text-base sm:text-sm text-[var(--text-primary)] bg-[var(--bg-card)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E08A1E] focus:border-transparent transition-all'
 
 /**
  * InputField — Reusable form field wrapper with consistent label and optional helper/error.

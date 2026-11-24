@@ -60,7 +60,7 @@ export function ProjectCard({ project, onView, onEdit, onShare, onDelete, deleti
           onView?.(project)
         }
       }}
-      className="p-4 border-b border-slate-100 last:border-b-0 active:bg-amber-50/60 hover:bg-amber-50/35 transition-colors cursor-pointer space-y-2.5"
+      className="p-4 border-b border-[var(--border-subtle)] last:border-b-0 active:bg-[#FEF6E9] hover:bg-[#FEF6E9]/60 transition-colors cursor-pointer space-y-2.5"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 space-y-1">
@@ -116,7 +116,7 @@ export default function ProjectRow({
         }
       }}
       tabIndex={0}
-      className="group border-b border-slate-100 last:border-b-0 cursor-pointer hover:bg-amber-50/40 focus:outline-none focus:bg-amber-50/50 transition-colors duration-150"
+      className="group border-b border-[var(--border-subtle)] last:border-b-0 cursor-pointer hover:bg-[#FEF6E9]/60 focus:outline-none focus:bg-[#FEF6E9]/70 transition-colors duration-150"
     >
       {/* Project Name */}
       <td className="pl-6 pr-4 py-4">

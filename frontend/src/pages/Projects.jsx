@@ -135,41 +135,41 @@ export default function Projects() {
       value: 'all',
       label: 'All Projects',
       count: projects.length,
-      idle: 'bg-white text-slate-900 border-slate-200 hover:border-slate-300',
-      active: 'bg-slate-900 text-white border-slate-900 shadow-sm',
+      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#D6CFC2]',
+      active: 'bg-[#1E242B] text-white border-[#1E242B] shadow-sm',
       dot: 'bg-slate-400',
     },
     {
       value: 'active',
       label: 'Active',
       count: projects.filter((p) => p.status === 'active').length,
-      idle: 'bg-white text-slate-900 border-slate-200 hover:border-emerald-300',
-      active: 'bg-emerald-50 text-emerald-900 border-emerald-500 ring-1 ring-emerald-500',
-      dot: 'bg-emerald-500',
+      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#BBF7D0]',
+      active: 'bg-[#DCFCE7] text-[#166534] border-[#16A34A] ring-1 ring-[#16A34A]',
+      dot: 'bg-[#16A34A]',
     },
     {
       value: 'planning',
       label: 'Planning',
       count: projects.filter((p) => p.status === 'planning').length,
-      idle: 'bg-white text-slate-900 border-slate-200 hover:border-purple-300',
-      active: 'bg-purple-50 text-purple-900 border-purple-500 ring-1 ring-purple-500',
-      dot: 'bg-purple-500',
+      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#DDD6FE]',
+      active: 'bg-[#EDE9FE] text-[#5B21B6] border-[#7C3AED] ring-1 ring-[#7C3AED]',
+      dot: 'bg-[#7C3AED]',
     },
     {
       value: 'paused',
       label: 'Paused',
       count: projects.filter((p) => p.status === 'paused').length,
-      idle: 'bg-white text-slate-900 border-slate-200 hover:border-amber-300',
-      active: 'bg-amber-50 text-amber-900 border-amber-500 ring-1 ring-amber-500',
-      dot: 'bg-amber-500',
+      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#FDE68A]',
+      active: 'bg-[#FEF3C7] text-[#92400E] border-[#D97706] ring-1 ring-[#D97706]',
+      dot: 'bg-[#D97706]',
     },
     {
       value: 'completed',
       label: 'Completed',
       count: projects.filter((p) => p.status === 'completed').length,
-      idle: 'bg-white text-slate-900 border-slate-200 hover:border-blue-300',
-      active: 'bg-blue-50 text-blue-900 border-blue-500 ring-1 ring-blue-500',
-      dot: 'bg-blue-500',
+      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#BFDBFE]',
+      active: 'bg-[#DBEAFE] text-[#1E40AF] border-[#2563EB] ring-1 ring-[#2563EB]',
+      dot: 'bg-[#2563EB]',
     },
   ]
 
@@ -218,7 +218,7 @@ export default function Projects() {
 
       {/* Projects Table Card */}
       <Card noPad>
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-[var(--border-subtle)]">
           <div className="relative flex items-center w-full max-w-sm">
             <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
@@ -226,7 +226,7 @@ export default function Projects() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, location, or client..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-100 text-base sm:text-sm text-slate-700 placeholder-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white transition-all"
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-[var(--bg-input)] text-base sm:text-sm text-[var(--text-primary)] placeholder-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-[#E08A1E] focus:bg-[var(--bg-card)] transition-all"
             />
           </div>
 
