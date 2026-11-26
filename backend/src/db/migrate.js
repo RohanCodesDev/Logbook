@@ -59,10 +59,17 @@ export async function runMigrations() {
         name        VARCHAR(255) NOT NULL,
         field_type  VARCHAR(50)  NOT NULL DEFAULT 'text',
         options     JSONB        NOT NULL DEFAULT '[]'::jsonb,
+        formula     JSONB,
         is_required BOOLEAN      NOT NULL DEFAULT false,
         sort_order  INTEGER      NOT NULL DEFAULT 0,
         created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
+    `);
+
+    // Ensure formula column exists for tables created prior to this migration
+    await client.query(`
+      ALTER TABLE section_fields
+      ADD COLUMN IF NOT EXISTS formula JSONB;
     `);
 
     // 5. Dynamic Records table (values stored as JSONB keyed by field id)

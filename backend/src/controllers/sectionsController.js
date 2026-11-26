@@ -1,15 +1,5 @@
 import pool from '../db/index.js';
-
-const toField = (row) => ({
-  id:         row.id,
-  sectionId:  row.section_id,
-  name:       row.name,
-  fieldType:  row.field_type,
-  options:    Array.isArray(row.options) ? row.options : [],
-  isRequired: row.is_required,
-  sortOrder:  row.sort_order,
-  createdAt:  row.created_at,
-});
+import { toField } from './fieldsController.js';
 
 const toSection = (row, fields = [], recordCount = 0) => ({
   id:          row.id,

@@ -19,7 +19,7 @@ import { useTopBar } from '../components/layout/AppLayout'
 import {
   getProject, updateProject,
   getSections, createSection, updateSection, deleteSection,
-  createField, updateField, deleteField,
+  createField, reorderFields, updateField, deleteField,
   getRecords, createRecord, updateRecord, deleteRecord,
 } from '../services/api'
 
@@ -49,6 +49,7 @@ export default function ProjectWorkspace() {
   const [deletingSection, setDeletingSection]         = useState(false)
 
   const [fieldBuilderOpen, setFieldBuilderOpen] = useState(false)
+  const [editingFieldId, setEditingFieldId]     = useState(null)
 
   const [recordModalOpen, setRecordModalOpen]       = useState(false)
   const [editingRecord, setEditingRecord]           = useState(null)
@@ -201,6 +202,33 @@ export default function ProjectWorkspace() {
     }
   }
 
+  const handleReorderFields = async (fieldIds) => {
+    if (!activeSection) return
+    const previousFields = activeSection.fields || []
+    const mapById = new Map(previousFields.map((f) => [f.id, f]))
+    const optimisticFields = fieldIds.map((fid, idx) => ({
+      ...mapById.get(fid),
+      sortOrder: idx,
+    })).filter(Boolean)
+
+    setSections((prev) =>
+      prev.map((s) => (s.id === activeSection.id ? { ...s, fields: optimisticFields } : s))
+    )
+    try {
+      const res = await reorderFields(activeSection.id, fieldIds)
+      setSections((prev) =>
+        prev.map((s) => (s.id === activeSection.id ? { ...s, fields: res.data } : s))
+      )
+      showToast('Column order updated')
+    } catch (err) {
+      setSections((prev) =>
+        prev.map((s) => (s.id === activeSection.id ? { ...s, fields: previousFields } : s))
+      )
+      showToast(err.message, 'error')
+      throw err
+    }
+  }
+
   const handleSaveRecord = async (data) => {
     if (editingRecord) {
       const res = await updateRecord(editingRecord.id, data)
@@ -215,6 +243,22 @@ export default function ProjectWorkspace() {
         )
       )
       showToast('Entry saved')
+    }
+  }
+
+  const handleDuplicateRecord = async (data) => {
+    try {
+      const res = await createRecord(activeSection.id, data)
+      setRecords((prev) => [...prev, res.data])
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === activeSection.id ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
+        )
+      )
+      showToast('Entry duplicated')
+    } catch (err) {
+      showToast(err.message, 'error')
+      throw err
     }
   }
 
@@ -310,7 +354,7 @@ export default function ProjectWorkspace() {
           {activeSection && (
             <Card noPad>
               {activeSection.description && (
-                <div className="px-6 py-3 bg-slate-50/70 border-b border-slate-100 text-xs text-slate-500">
+                <div className="px-6 py-3 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] text-xs text-slate-500">
                   {activeSection.description}
                 </div>
               )}
@@ -320,11 +364,16 @@ export default function ProjectWorkspace() {
                 loading={loadingRecords}
                 onAddEntry={() => { setEditingRecord(null); setRecordModalOpen(true) }}
                 onEditEntry={(rec) => { setEditingRecord(rec); setRecordModalOpen(true) }}
+                onDuplicateRecord={handleDuplicateRecord}
                 onInlineUpdateRecord={handleInlineUpdateRecord}
                 onDeleteRecord={(rec) => setDeleteRecordTarget(rec)}
                 onAddColumn={handleAddField}
                 onDeleteField={handleDeleteField}
-                onCustomizeFields={() => setFieldBuilderOpen(true)}
+                onReorderFields={handleReorderFields}
+                onCustomizeFields={(fieldId = null) => {
+                  setEditingFieldId(fieldId)
+                  setFieldBuilderOpen(true)
+                }}
                 onEditSection={(sec) => { setEditingSection(sec); setSectionModalOpen(true) }}
                 onDeleteSection={(sec) => setDeleteSectionTarget(sec)}
                 deletingRecordId={deletingRecordId}
@@ -351,11 +400,16 @@ export default function ProjectWorkspace() {
 
       <CustomFieldBuilderModal
         open={fieldBuilderOpen}
-        onClose={() => setFieldBuilderOpen(false)}
+        onClose={() => {
+          setFieldBuilderOpen(false)
+          setEditingFieldId(null)
+        }}
         section={activeSection}
+        initialEditFieldId={editingFieldId}
         onAddField={handleAddField}
         onUpdateField={handleUpdateField}
         onDeleteField={handleDeleteField}
+        onReorderFields={handleReorderFields}
       />
 
       <RecordFormModal
@@ -364,6 +418,7 @@ export default function ProjectWorkspace() {
         section={activeSection}
         initialRecord={editingRecord}
         onSubmit={handleSaveRecord}
+        onDuplicate={(data) => handleDuplicateRecord(data)}
         onDelete={(rec) => {
           setRecordModalOpen(false)
           setDeleteRecordTarget(rec)

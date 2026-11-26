@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { updateSection, deleteSection } from '../controllers/sectionsController.js';
-import { createField } from '../controllers/fieldsController.js';
+import { createField, reorderFields } from '../controllers/fieldsController.js';
 import { getRecordsBySection, createRecord } from '../controllers/recordsController.js';
 
 const router = Router();
@@ -10,7 +10,8 @@ router.put('/:sectionId',    updateSection);
 router.delete('/:sectionId', deleteSection);
 
 // Fields inside a section
-router.post('/:sectionId/fields', createField);
+router.post('/:sectionId/fields',         createField);
+router.put('/:sectionId/fields/reorder',  reorderFields);
 
 // Records inside a section
 router.get('/:sectionId/records',  getRecordsBySection);

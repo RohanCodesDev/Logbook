@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
   Plus, Trash2, Pencil, Check, X, Loader2, AlertTriangle,
+  ArrowUp, ArrowDown, Calculator,
   Type, Hash, IndianRupee, Calendar, List, AlignLeft, CheckSquare
 } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import InputField, { inputClass } from '../ui/InputField'
+import { FORMULA_OPERATORS, isNumericColumn } from '../../utils/sheetUtils'
 
 export const FIELD_TYPES = [
   { value: 'text',     label: 'Short Text',     icon: Type },
@@ -15,6 +17,7 @@ export const FIELD_TYPES = [
   { value: 'select',   label: 'Dropdown List',  icon: List },
   { value: 'textarea', label: 'Long Notes',     icon: AlignLeft },
   { value: 'checkbox', label: 'Yes / No Check', icon: CheckSquare },
+  { value: 'formula',  label: 'Auto Formula',   icon: Calculator },
 ]
 
 const EMPTY_FIELD = {
@@ -22,26 +25,34 @@ const EMPTY_FIELD = {
   fieldType: 'text',
   optionsText: '',
   isRequired: false,
+  leftFieldId: '',
+  operator: 'mul',
+  rightFieldId: '',
+  formulaFormat: 'currency',
 }
 
 /**
- * CustomFieldBuilderModal — Manage custom columns/fields inside a workspace section.
+ * CustomFieldBuilderModal — Create, edit, reorder, and delete custom columns per sheet.
  */
 export default function CustomFieldBuilderModal({
   open,
   onClose,
   section,
+  initialEditFieldId = null,
   onAddField,
   onUpdateField,
   onDeleteField,
+  onReorderFields,
 }) {
   const [form, setForm]             = useState(EMPTY_FIELD)
   const [editingId, setEditingId]   = useState(null)
   const [saving, setSaving]         = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError]           = useState(null)
 
   const fields = section?.fields || []
+  const formulaSourceFields = fields.filter((f) => f.id !== editingId && isNumericColumn(f))
 
   const normalizedName = form.name.trim().toLowerCase()
   const isDuplicateName = Boolean(
@@ -51,18 +62,29 @@ export default function CustomFieldBuilderModal({
 
   useEffect(() => {
     if (!open) return
+    setError(null)
+    if (initialEditFieldId) {
+      const target = fields.find((f) => f.id === initialEditFieldId)
+      if (target) {
+        startEdit(target)
+        return
+      }
+    }
     setForm(EMPTY_FIELD)
     setEditingId(null)
-    setError(null)
-  }, [open, section?.id])
+  }, [open, section?.id, initialEditFieldId])
 
   const startEdit = (field) => {
     setEditingId(field.id)
     setForm({
-      name:        field.name,
-      fieldType:   field.fieldType,
-      optionsText: (field.options || []).join(', '),
-      isRequired:  field.isRequired,
+      name:          field.name,
+      fieldType:     field.fieldType,
+      optionsText:   (field.options || []).join(', '),
+      isRequired:    field.isRequired,
+      leftFieldId:   field.formula?.leftFieldId ? String(field.formula.leftFieldId) : '',
+      operator:      field.formula?.operator || 'mul',
+      rightFieldId:  field.formula?.rightFieldId ? String(field.formula.rightFieldId) : '',
+      formulaFormat: field.formula?.format || 'currency',
     })
     setError(null)
   }
@@ -76,7 +98,7 @@ export default function CustomFieldBuilderModal({
   const handleSave = async (e) => {
     e.preventDefault()
     if (!form.name.trim()) {
-      setError('Field label is required.')
+      setError('Column name is required.')
       return
     }
     const options = form.fieldType === 'select'
@@ -88,6 +110,20 @@ export default function CustomFieldBuilderModal({
       return
     }
 
+    let formula = null
+    if (form.fieldType === 'formula') {
+      if (!form.leftFieldId || !form.rightFieldId) {
+        setError('Pick two numeric/currency columns for the formula.')
+        return
+      }
+      formula = {
+        leftFieldId:  Number(form.leftFieldId),
+        operator:     form.operator,
+        rightFieldId: Number(form.rightFieldId),
+        format:       form.formulaFormat,
+      }
+    }
+
     setSaving(true)
     setError(null)
     try {
@@ -95,7 +131,8 @@ export default function CustomFieldBuilderModal({
         name:       form.name.trim(),
         fieldType:  form.fieldType,
         options,
-        isRequired: form.isRequired,
+        formula,
+        isRequired: form.fieldType === 'formula' ? false : form.isRequired,
       }
       if (editingId) {
         await onUpdateField(editingId, payload)
@@ -123,43 +160,65 @@ export default function CustomFieldBuilderModal({
     }
   }
 
+  const moveField = async (index, delta) => {
+    if (!onReorderFields || reordering) return
+    const targetIdx = index + delta
+    if (targetIdx < 0 || targetIdx >= fields.length) return
+    const ordered = [...fields]
+    const [moved] = ordered.splice(index, 1)
+    ordered.splice(targetIdx, 0, moved)
+
+    setReordering(true)
+    setError(null)
+    try {
+      await onReorderFields(ordered.map((f) => f.id))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setReordering(false)
+    }
+  }
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={`Customize Fields — ${section?.name || ''}`}
+      title={`Manage Columns — ${section?.name || ''}`}
     >
       <div className="space-y-6">
-        {/* Existing fields list */}
+        {/* Existing fields list with instant Up/Down reorder + Edit + Delete */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Current Columns ({fields.length})
+              Columns Order ({fields.length})
             </p>
+            {fields.length > 1 && (
+              <span className="text-[11px] text-slate-400">Use ↑ ↓ to reorder</span>
+            )}
           </div>
 
           {fields.length === 0 ? (
-            <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
-              No custom fields yet. Add your first field below.
+            <div className="p-4 rounded-xl border border-dashed border-[var(--border-subtle)] text-center text-xs text-slate-400">
+              No custom columns yet. Add your first column below.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/40">
-              {fields.map((f) => {
+            <div className="divide-y divide-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-canvas)]">
+              {fields.map((f, idx) => {
                 const typeMeta = FIELD_TYPES.find((t) => t.value === f.fieldType) || FIELD_TYPES[0]
                 const Icon = typeMeta.icon
                 return (
                   <div
                     key={f.id}
-                    className={`flex items-center justify-between gap-3 px-3.5 py-2.5 bg-white ${
-                      editingId === f.id ? 'ring-1 ring-inset ring-amber-400 bg-amber-50/40' : ''
+                    className={`flex items-center justify-between gap-2 px-3 py-2.5 bg-[var(--bg-card)] ${
+                      editingId === f.id ? 'ring-1 ring-inset ring-[#E08A1E] bg-[#FEF6E9]/60' : ''
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="p-1.5 rounded-lg bg-slate-100 text-slate-500 flex-shrink-0">
+                      <span className="p-1.5 rounded-lg bg-[var(--bg-input)] text-slate-500 flex-shrink-0">
                         <Icon className="w-3.5 h-3.5" />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 truncate">
+                        <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
                           {f.name}
                           {f.isRequired && <span className="text-red-500 ml-1">*</span>}
                         </p>
@@ -168,25 +227,57 @@ export default function CustomFieldBuilderModal({
                           {f.fieldType === 'select' && f.options?.length > 0
                             ? ` (${f.options.join(', ')})`
                             : ''}
+                          {f.fieldType === 'formula' && f.formula
+                            ? (() => {
+                                const l = fields.find((x) => x.id === Number(f.formula.leftFieldId))?.name || '?'
+                                const r = fields.find((x) => x.id === Number(f.formula.rightFieldId))?.name || '?'
+                                const sym = FORMULA_OPERATORS.find((o) => o.value === f.formula.operator)?.symbol || '×'
+                                return ` (${l} ${sym} ${r})`
+                              })()
+                            : ''}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      {onReorderFields && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => moveField(idx, -1)}
+                            disabled={idx === 0 || reordering}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-[var(--text-primary)] hover:bg-[var(--bg-input)] disabled:opacity-25 transition-colors"
+                            title="Move Up"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveField(idx, 1)}
+                            disabled={idx === fields.length - 1 || reordering}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-[var(--text-primary)] hover:bg-[var(--bg-input)] disabled:opacity-25 transition-colors"
+                            title="Move Down"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => startEdit(f)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                        title="Edit Field"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
+                        title="Edit Column"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
+
                       <button
                         type="button"
                         onClick={() => handleDelete(f.id)}
                         disabled={deletingId === f.id}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Remove Field"
+                        title="Remove Column"
                       >
                         {deletingId === f.id
                           ? <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
@@ -202,10 +293,10 @@ export default function CustomFieldBuilderModal({
         </div>
 
         {/* Add / Edit field form */}
-        <form onSubmit={handleSave} className="space-y-3.5 pt-4 border-t border-slate-200">
+        <form onSubmit={handleSave} className="space-y-3.5 pt-4 border-t border-[var(--border-subtle)]">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              {editingId ? 'Edit Field' : 'Add New Field'}
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary)]">
+              {editingId ? 'Edit Column' : 'Add New Column'}
             </p>
             {editingId && (
               <button
@@ -219,17 +310,17 @@ export default function CustomFieldBuilderModal({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <InputField label="Field Label" required>
+            <InputField label="Column Label" required>
               <input
                 type="text"
                 className={inputClass}
-                placeholder="e.g. Vendor Name, Bags, Cost"
+                placeholder="e.g. Vendor Name, Qty, Total"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </InputField>
 
-            <InputField label="Field Type">
+            <InputField label="Column Type">
               <select
                 className={inputClass}
                 value={form.fieldType}
@@ -258,21 +349,100 @@ export default function CustomFieldBuilderModal({
             </InputField>
           )}
 
-          <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={form.isRequired}
-              onChange={(e) => setForm({ ...form, isRequired: e.target.checked })}
-              className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
-            />
-            Required field when logging a record
-          </label>
+          {form.fieldType === 'formula' && (
+            <div className="p-3.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-subtle)] space-y-3">
+              <p className="text-xs font-semibold text-[var(--text-primary)]">
+                Auto-Calculate From Columns
+              </p>
+              {formulaSourceFields.length < 2 ? (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Add at least 2 numeric or currency columns first (e.g. Quantity and Rate), then create a formula column.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <select
+                      className={inputClass}
+                      value={form.leftFieldId}
+                      onChange={(e) => setForm({ ...form, leftFieldId: e.target.value })}
+                    >
+                      <option value="">First column...</option>
+                      {formulaSourceFields.map((sf) => (
+                        <option key={sf.id} value={String(sf.id)}>{sf.name}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className={inputClass}
+                      value={form.operator}
+                      onChange={(e) => setForm({ ...form, operator: e.target.value })}
+                    >
+                      {FORMULA_OPERATORS.map((op) => (
+                        <option key={op.value} value={op.value}>{op.label}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className={inputClass}
+                      value={form.rightFieldId}
+                      onChange={(e) => setForm({ ...form, rightFieldId: e.target.value })}
+                    >
+                      <option value="">Second column...</option>
+                      {formulaSourceFields.map((sf) => (
+                        <option key={sf.id} value={String(sf.id)}>{sf.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Result Format:</span>
+                    <div className="inline-flex rounded-lg bg-[var(--bg-input)] p-0.5 border border-[var(--border-subtle)]">
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, formulaFormat: 'currency' })}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${
+                          form.formulaFormat === 'currency'
+                            ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        Amount (₹)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, formulaFormat: 'number' })}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${
+                          form.formulaFormat === 'number'
+                            ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        Number
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {form.fieldType !== 'formula' && (
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.isRequired}
+                onChange={(e) => setForm({ ...form, isRequired: e.target.checked })}
+                className="w-4 h-4 rounded border-slate-300 text-[#E08A1E] focus:ring-[#E08A1E]"
+              />
+              Required column when logging an entry
+            </label>
+          )}
 
           {isDuplicateName && (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-600" />
               <span>
-                A column named <strong>"{form.name.trim()}"</strong> already exists. Consider a distinct label (e.g. <em>Start Date</em> / <em>End Date</em>) to avoid confusion on small screens.
+                A column named <strong>"{form.name.trim()}"</strong> already exists. Consider a distinct label (e.g. <em>Start Date</em> / <em>End Date</em>) to avoid confusion.
               </span>
             </p>
           )}
@@ -297,12 +467,12 @@ export default function CustomFieldBuilderModal({
               ) : editingId ? (
                 <>
                   <Check className="w-4 h-4" />
-                  Update Field
+                  Update Column
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
-                  Add Field
+                  Add Column
                 </>
               )}
             </Button>

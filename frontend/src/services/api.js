@@ -38,9 +38,10 @@ export const deleteSection = (sectionId)          => request(`/sections/${sectio
 
 // ─── Custom Fields (Columns inside a Section) ────────────────────────────────
 
-export const createField = (sectionId, payload) => request(`/sections/${sectionId}/fields`, { method: 'POST', body: JSON.stringify(payload) });
-export const updateField = (fieldId, payload)   => request(`/fields/${fieldId}`, { method: 'PUT', body: JSON.stringify(payload) });
-export const deleteField = (fieldId)            => request(`/fields/${fieldId}`, { method: 'DELETE' });
+export const createField   = (sectionId, payload)  => request(`/sections/${sectionId}/fields`, { method: 'POST', body: JSON.stringify(payload) });
+export const reorderFields = (sectionId, fieldIds) => request(`/sections/${sectionId}/fields/reorder`, { method: 'PUT', body: JSON.stringify({ fieldIds }) });
+export const updateField   = (fieldId, payload)    => request(`/fields/${fieldId}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const deleteField   = (fieldId)             => request(`/fields/${fieldId}`, { method: 'DELETE' });
 
 // ─── Records (Rows inside a Section) ─────────────────────────────────────────
 
