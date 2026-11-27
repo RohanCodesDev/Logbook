@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Trash2, Search, Download, Plus, Pencil, Copy,
   CheckCircle2, Minus, Loader2, SlidersHorizontal,
@@ -601,17 +602,49 @@ function ColumnHeaderCell({
   onDeleteField,
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef(null)
+  const dropdownRef = useRef(null)
+
+  const openMenu = () => {
+    if (menuOpen) {
+      setMenuOpen(false)
+      return
+    }
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const menuWidth = 192
+      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8))
+      const top = Math.min(rect.bottom + 6, window.innerHeight - 280)
+      setMenuPos({ top: Math.max(8, top), left })
+    }
+    setMenuOpen(true)
+  }
 
   useEffect(() => {
     if (!menuOpen) return
-    const close = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false)
+    const handleOutside = (e) => {
+      if (
+        triggerRef.current?.contains(e.target) ||
+        dropdownRef.current?.contains(e.target)
+      ) {
+        return
       }
+      setMenuOpen(false)
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    const handleKey = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    const handleScroll = () => setMenuOpen(false)
+
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
   }, [menuOpen])
 
   const effectiveKind = resolveSortKind(field, 'auto')
@@ -632,7 +665,6 @@ function ColumnHeaderCell({
 
   return (
     <th
-      ref={menuRef}
       className="relative px-3 py-2.5 border-r border-[var(--border-subtle)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap min-w-[140px] group select-none"
     >
       <div className="flex items-center justify-between gap-1">
@@ -657,8 +689,9 @@ function ColumnHeaderCell({
         </button>
 
         <button
+          ref={triggerRef}
           type="button"
-          onClick={() => setMenuOpen((prev) => !prev)}
+          onClick={openMenu}
           className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-[#E6E1D6]/70 transition-colors flex-shrink-0"
           title="Column Options"
         >
@@ -666,9 +699,11 @@ function ColumnHeaderCell({
         </button>
       </div>
 
-      {menuOpen && (
+      {menuOpen && createPortal(
         <div
-          className="absolute left-1 top-full mt-1 w-48 bg-[var(--bg-card)] rounded-xl shadow-xl border border-[var(--border-subtle)] py-1.5 z-30 font-normal normal-case tracking-normal text-left"
+          ref={dropdownRef}
+          style={{ top: menuPos.top, left: menuPos.left }}
+          className="fixed w-48 bg-[var(--bg-card)] rounded-xl shadow-2xl border border-[var(--border-subtle)] py-1.5 z-[9999] font-normal normal-case tracking-normal text-left"
           onClick={() => setMenuOpen(false)}
         >
           <button
@@ -754,7 +789,8 @@ function ColumnHeaderCell({
             <Trash2 className="w-3.5 h-3.5" />
             <span>Delete Column</span>
           </button>
-        </div>
+        </div>,
+        document.body
       )}
     </th>
   )
@@ -1084,7 +1120,21 @@ export default function RecordRegisterTable({
           </div>
         )}
 
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {fields.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-input)]/80 border border-[var(--border-subtle)] text-[11px] font-semibold text-slate-600 tabular-nums">
+              <span>
+                {processedRecords.length}
+                {processedRecords.length !== records.length ? `/${records.length}` : ''}{' '}
+                {processedRecords.length === 1 ? 'entry' : 'entries'}
+              </span>
+              <span className="hidden sm:inline text-slate-300">•</span>
+              <span className="hidden sm:inline text-[#C97814]">
+                {fields.length} {fields.length === 1 ? 'col' : 'cols'}
+              </span>
+            </span>
+          )}
+
           {fields.length > 0 ? (
             <Button
               variant="primary"
@@ -1116,7 +1166,7 @@ export default function RecordRegisterTable({
 
             {sheetMenuOpen && (
               <div
-                className="absolute right-0 top-full mt-1.5 w-48 bg-[var(--bg-card)] rounded-xl shadow-xl border border-[var(--border-subtle)] py-1.5 z-40"
+                className="absolute right-0 top-full mt-1.5 w-48 bg-[var(--bg-card)] rounded-xl shadow-xl border border-[var(--border-subtle)] py-1.5 z-50"
                 onClick={() => setSheetMenuOpen(false)}
               >
                 <button
@@ -1358,45 +1408,38 @@ export default function RecordRegisterTable({
                 ))}
               </div>
 
-              {/* Subtle muted summary footer in Card View */}
-              <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1 text-[11px] text-slate-500 font-medium">
-                <span className="tabular-nums">
-                  {processedRecords.length} {processedRecords.length === 1 ? 'entry' : 'entries'}
-                  {processedRecords.length !== records.length ? ` (of ${records.length})` : ''} • {fields.length} {fields.length === 1 ? 'column' : 'columns'}
-                </span>
-                {summaryFields.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setTotalsModalOpen(true)}
-                    className="flex flex-wrap items-center gap-3 text-left hover:text-[#C97814] transition-colors"
-                  >
-                    {summaryFields.map((f) => {
-                      const s = statsByField[f.id]
-                      if (!s) return null
-                      return (
-                        <span key={f.id} className="tabular-nums">
-                          {displayLabels[f.id]}:{' '}
-                          <strong className="text-[var(--text-primary)] font-semibold">
-                            {s.isCurrency
-                              ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-                              : s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                          </strong>
-                        </span>
-                      )
-                    })}
-                  </button>
-                )}
-              </div>
+              {/* Quick Totals bar in Card View when numeric columns exist */}
+              {summaryFields.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setTotalsModalOpen(true)}
+                  className="flex flex-wrap items-center gap-3 px-1 pt-1 text-[11px] text-slate-500 font-medium text-left hover:text-[#C97814] transition-colors"
+                >
+                  {summaryFields.map((f) => {
+                    const s = statsByField[f.id]
+                    if (!s) return null
+                    return (
+                      <span key={f.id} className="tabular-nums">
+                        {displayLabels[f.id]}:{' '}
+                        <strong className="text-[var(--text-primary)] font-semibold">
+                          {s.isCurrency
+                            ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                            : s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </strong>
+                      </span>
+                    )
+                  })}
+                </button>
+              )}
             </div>
           ) : (
             /* ─── Excel Spreadsheet Grid View ────────────────────────── */
-            <>
-              <div className="relative">
-                <div
-                  ref={tableScrollRef}
-                  onScroll={checkTableScroll}
-                  className="overflow-x-auto"
-                >
+            <div className="relative">
+              <div
+                ref={tableScrollRef}
+                onScroll={checkTableScroll}
+                className="overflow-x-auto"
+              >
                   <table className="w-full text-left border-collapse border-b border-[var(--border-subtle)]">
                     <thead>
                       <tr className="bg-[var(--bg-input)]/80 text-slate-600 border-b border-[var(--border-subtle)] text-xs font-bold select-none">
@@ -1531,55 +1574,14 @@ export default function RecordRegisterTable({
                   </table>
                 </div>
 
-                {/* Right-edge scroll hint gradient when grid overflows horizontally */}
-                {canScrollRight && (
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#FCFBF8]/95 via-[#FCFBF8]/60 to-transparent z-20"
-                  />
-                )}
-              </div>
-
-              {/* ─── Grid Status Bar (AutoCalculate Sums & Counts) ──── */}
-              <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-[#1E242B] text-slate-200 text-xs font-medium">
-                <div className="flex items-center gap-3">
-                  <span className="tabular-nums font-semibold">
-                    {processedRecords.length} {processedRecords.length === 1 ? 'entry' : 'entries'}
-                    {processedRecords.length !== records.length ? ` / ${records.length}` : ''}
-                  </span>
-                  <span className="text-slate-600">|</span>
-                  <span className="tabular-nums font-semibold text-[#F2A649]">
-                    {fields.length} {fields.length === 1 ? 'column' : 'columns'}
-                  </span>
-                </div>
-
-                {summaryFields.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setTotalsModalOpen(true)}
-                    className="flex flex-wrap items-center gap-x-5 gap-y-1 hover:opacity-90 text-left"
-                    title="Click to inspect full SUM, AVG, MIN, MAX breakdown"
-                  >
-                    {summaryFields.map((f) => {
-                      const s = statsByField[f.id]
-                      if (!s) return null
-                      return (
-                        <div key={f.id} className="flex items-center gap-1.5 tabular-nums">
-                          <span className="text-slate-400 text-[11px] uppercase tracking-wider">
-                            {displayLabels[f.id]} SUM:
-                          </span>
-                          <strong className="text-[#F2A649] font-bold">
-                            {s.isCurrency
-                              ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-                              : s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                          </strong>
-                        </div>
-                      )
-                    })}
-                  </button>
-                )}
-              </div>
-            </>
+              {/* Right-edge scroll hint gradient when grid overflows horizontally */}
+              {canScrollRight && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#FCFBF8]/95 via-[#FCFBF8]/60 to-transparent z-20"
+                />
+              )}
+            </div>
           )}
         </>
       )}
