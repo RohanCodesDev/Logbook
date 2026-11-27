@@ -26,6 +26,21 @@ import {
   computeSheetStats,
 } from '../../utils/sheetUtils'
 
+function getColumnWidthClass(fieldType) {
+  switch (fieldType) {
+    case 'date':
+      return 'w-[126px] min-w-[116px] max-w-[136px]'
+    case 'checkbox':
+      return 'w-[92px] min-w-[84px] max-w-[100px]'
+    case 'number':
+    case 'currency':
+    case 'formula':
+      return 'w-[132px] min-w-[116px]'
+    default:
+      return 'min-w-[155px]'
+  }
+}
+
 /**
  * Returns icon corresponding to column data type
  */
@@ -665,7 +680,7 @@ function ColumnHeaderCell({
 
   return (
     <th
-      className="relative px-3 py-2.5 border-r border-[var(--border-subtle)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap min-w-[140px] group select-none"
+      className={`relative px-2.5 py-2.5 border-r border-[var(--border-subtle)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap group select-none ${getColumnWidthClass(field.fieldType)}`}
     >
       <div className="flex items-center justify-between gap-1">
         <button
@@ -842,8 +857,8 @@ function MobileEntryCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-0.5">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-[var(--bg-input)] text-slate-600 text-[10px] font-bold tabular-nums">
-              #{String(index + 1).padStart(2, '0')}
+            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-[var(--bg-input)] text-slate-600 text-[10px] font-bold tabular-nums uppercase">
+              SL {String(index + 1).padStart(2, '0')}
             </span>
             {headlineField && (
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">
@@ -1058,7 +1073,7 @@ export default function RecordRegisterTable({
   const handleExportCsv = () => {
     if (!fields.length || !processedRecords.length) return
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const header = ['#', ...fields.map((f) => esc(displayLabels[f.id]))].join(',')
+    const header = ['SL', ...fields.map((f) => esc(displayLabels[f.id]))].join(',')
     const rows = processedRecords.map((rec, idx) =>
       [
         idx + 1,
@@ -1443,8 +1458,8 @@ export default function RecordRegisterTable({
                   <table className="w-full text-left border-collapse border-b border-[var(--border-subtle)]">
                     <thead>
                       <tr className="bg-[var(--bg-input)]/80 text-slate-600 border-b border-[var(--border-subtle)] text-xs font-bold select-none">
-                        <th className="sticky left-0 z-20 bg-[var(--bg-input)] px-3 py-2.5 w-12 text-center border-r border-[var(--border-subtle)] text-slate-500 text-[11px] tabular-nums">
-                          #
+                        <th className="sticky left-0 z-20 bg-[var(--bg-input)] px-3 py-2.5 w-12 text-center border-r border-[var(--border-subtle)] text-slate-500 text-[11px] uppercase tracking-wider tabular-nums">
+                          SL
                         </th>
 
                         {fields.map((f, idx) => {
@@ -1477,7 +1492,7 @@ export default function RecordRegisterTable({
                           )
                         })}
 
-                        <th className="px-3 py-2.5 w-28 text-center border-r border-[var(--border-subtle)] whitespace-nowrap bg-[var(--bg-input)]/60">
+                        <th className="px-3 py-2.5 text-left border-r border-[var(--border-subtle)] whitespace-nowrap bg-[var(--bg-input)]/60">
                           <button
                             type="button"
                             onClick={() => setAddColumnOpen(true)}
@@ -1517,7 +1532,7 @@ export default function RecordRegisterTable({
                             {fields.map((f) => (
                               <td
                                 key={f.id}
-                                className="p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle"
+                                className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
                               >
                                 <EditableCell
                                   field={f}
