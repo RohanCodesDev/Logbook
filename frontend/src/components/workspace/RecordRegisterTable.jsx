@@ -490,28 +490,23 @@ function DateGroupBanner({ group, onAddForDate }) {
   const shortDay = weekday ? weekday.slice(0, 3) : ''
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 sm:px-5 py-2 select-none">
-      {/* Left divider line */}
-      <div className="flex items-center">
-        <span className="h-px w-full bg-[var(--border-subtle)]/80" />
-      </div>
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 sm:px-5 py-2 select-none">
+      <div />
 
-      {/* Center-aligned Date pill */}
-      <div className="inline-flex items-center justify-center gap-1.5 px-3 py-0.5 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-xs whitespace-nowrap">
-        <Calendar className="w-3 h-3 text-[#E08A1E] flex-shrink-0" />
-        <span className="font-heading text-xs font-bold text-[var(--text-primary)] tracking-tight">
+      {/* Plain centered Date heading (no pill/box container) */}
+      <div className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+        <span className="font-heading text-xs sm:text-sm font-bold text-[var(--text-primary)] tracking-tight">
           {title}{shortDay ? ` · ${shortDay}` : ''}
         </span>
         {relativeTag && (
-          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#FEF6E9] text-[#C97814] border border-[#FDE68A]">
-            {relativeTag}
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#C97814]">
+            · {relativeTag}
           </span>
         )}
       </div>
 
-      {/* Right: divider line + Bold day total + subtle "+" icon */}
+      {/* Right: Bold day total + subtle "+" icon */}
       <div className="flex items-center justify-end gap-2 min-w-0">
-        <span className="h-px flex-1 bg-[var(--border-subtle)]/80 hidden sm:block" />
         {primarySummary && (
           <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] tabular-nums whitespace-nowrap">
             {primarySummary.isCurrency
@@ -1157,10 +1152,8 @@ export default function RecordRegisterTable({
             <div className="p-3.5 sm:p-5 space-y-4 bg-[var(--bg-canvas)]/70">
               {groupByDate ? (
                 dateGroups.map((group) => (
-                  <section key={group.dateKey} className="space-y-2.5">
-                    <div className="rounded-xl bg-[var(--bg-input)]/70 border border-[var(--border-subtle)]">
-                      <DateGroupBanner group={group} onAddForDate={onAddEntry} />
-                    </div>
+                  <section key={group.dateKey} className="space-y-2">
+                    <DateGroupBanner group={group} onAddForDate={onAddEntry} />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {group.records.map((rec, idx) => (
