@@ -1,5 +1,4 @@
 import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import {
   Trash2, Search, Download, Plus, Pencil, Copy,
   CheckCircle2, Minus, Loader2, SlidersHorizontal,
@@ -10,6 +9,7 @@ import {
 import Button from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
 import ActionMenu from '../ui/ActionMenu'
+import AnimatedDropdown, { AnimatedPortalMenu, AnimatedMenuItem } from '../ui/animated-dropdown'
 import { Dock, DockIcon, DockItem, DockLabel } from '../ui/dock'
 import SortModal from './SortModal'
 import FilterModal from './FilterModal'
@@ -212,21 +212,21 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
   if (isEditing) {
     if (field.fieldType === 'select') {
       return (
-        <select
-          ref={inputRef}
+        <AnimatedDropdown
+          defaultOpen={true}
+          placeholder="Select..."
           value={tempVal}
-          onChange={(e) => {
-            setTempVal(e.target.value)
-            commitChange(e.target.value)
+          onChange={(nextVal) => {
+            setTempVal(nextVal)
+            commitChange(nextVal)
           }}
-          onBlur={() => commitChange()}
-          className="w-full h-10 px-2 py-1 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
-        >
-          <option value="">Select...</option>
-          {(field.options || []).map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
+          onCloseComplete={() => setIsEditing(false)}
+          options={[
+            { value: '', label: '— Clear —' },
+            ...(field.options || []).map((opt) => ({ value: opt, label: opt })),
+          ]}
+          buttonClassName="h-10 px-2 py-1 rounded bg-[#FEF6E9] border-[#E08A1E] text-sm"
+        />
       )
     }
 
@@ -333,50 +333,7 @@ function ColumnHeaderCell({
   onDeleteField,
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
   const triggerRef = useRef(null)
-  const dropdownRef = useRef(null)
-
-  const openMenu = () => {
-    if (menuOpen) {
-      setMenuOpen(false)
-      return
-    }
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (rect) {
-      const menuWidth = 192
-      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8))
-      const top = Math.min(rect.bottom + 6, window.innerHeight - 280)
-      setMenuPos({ top: Math.max(8, top), left })
-    }
-    setMenuOpen(true)
-  }
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const handleOutside = (e) => {
-      if (
-        triggerRef.current?.contains(e.target) ||
-        dropdownRef.current?.contains(e.target)
-      ) {
-        return
-      }
-      setMenuOpen(false)
-    }
-    const handleKey = (e) => {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    const handleScroll = () => setMenuOpen(false)
-
-    document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('keydown', handleKey)
-    window.addEventListener('scroll', handleScroll, true)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('keydown', handleKey)
-      window.removeEventListener('scroll', handleScroll, true)
-    }
-  }, [menuOpen])
 
   const effectiveKind = resolveSortKind(field, 'auto')
   const ascLabel = effectiveKind === 'numeric'
@@ -422,7 +379,7 @@ function ColumnHeaderCell({
         <button
           ref={triggerRef}
           type="button"
-          onClick={openMenu}
+          onClick={() => setMenuOpen((prev) => !prev)}
           className={`p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-[#E6E1D6]/70 transition-all flex-shrink-0 ${
             menuOpen ? 'opacity-100' : 'sm:opacity-0 sm:group-hover/th:opacity-100 focus-visible:opacity-100'
           }`}
@@ -432,99 +389,91 @@ function ColumnHeaderCell({
         </button>
       </div>
 
-      {menuOpen && createPortal(
-        <div
-          ref={dropdownRef}
-          style={{ top: menuPos.top, left: menuPos.left }}
-          className="fixed w-48 bg-[var(--bg-card)] rounded-xl shadow-2xl border border-[var(--border-subtle)] py-1.5 z-[9999] font-normal normal-case tracking-normal text-left"
-          onClick={() => setMenuOpen(false)}
+      <AnimatedPortalMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        anchorRef={triggerRef}
+        align="right"
+        widthPx={192}
+        className="font-normal normal-case tracking-normal text-left"
+        onMenuClick={() => setMenuOpen(false)}
+      >
+        <AnimatedMenuItem
+          onClick={() => onQuickSort(field, 'asc')}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
         >
-          <button
-            type="button"
-            onClick={() => onQuickSort(field, 'asc')}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          <ArrowUp className="w-3.5 h-3.5 text-slate-400" />
+          <span>{ascLabel}</span>
+        </AnimatedMenuItem>
+
+        <AnimatedMenuItem
+          onClick={() => onQuickSort(field, 'desc')}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
+        >
+          <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
+          <span>{descLabel}</span>
+        </AnimatedMenuItem>
+
+        <AnimatedMenuItem
+          onClick={() => onOpenSortModal(field.id)}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
+        >
+          <ArrowUpDown className="w-3.5 h-3.5 text-[#E08A1E]" />
+          <span>More Sort Kinds...</span>
+        </AnimatedMenuItem>
+
+        <AnimatedMenuItem
+          onClick={() => onOpenFilterForColumn(field.id)}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
+        >
+          <Filter className="w-3.5 h-3.5 text-slate-400" />
+          <span>Filter Column</span>
+        </AnimatedMenuItem>
+
+        <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+        <AnimatedMenuItem
+          onClick={() => onEditField(field.id)}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
+        >
+          <Pencil className="w-3.5 h-3.5 text-slate-400" />
+          <span>Edit Column</span>
+        </AnimatedMenuItem>
+
+        {index > 0 && (
+          <AnimatedMenuItem
+            onClick={() => onMoveField(index, -1)}
+            className="text-slate-700 hover:bg-[var(--bg-input)]"
           >
-            <ArrowUp className="w-3.5 h-3.5 text-slate-400" />
-            <span>{ascLabel}</span>
-          </button>
+            <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
+            <span>Move Left</span>
+          </AnimatedMenuItem>
+        )}
 
-          <button
-            type="button"
-            onClick={() => onQuickSort(field, 'desc')}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+        {index < totalCount - 1 && (
+          <AnimatedMenuItem
+            onClick={() => onMoveField(index, 1)}
+            className="text-slate-700 hover:bg-[var(--bg-input)]"
           >
-            <ArrowDown className="w-3.5 h-3.5 text-slate-400" />
-            <span>{descLabel}</span>
-          </button>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+            <span>Move Right</span>
+          </AnimatedMenuItem>
+        )}
 
-          <button
-            type="button"
-            onClick={() => onOpenSortModal(field.id)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-          >
-            <ArrowUpDown className="w-3.5 h-3.5 text-[#E08A1E]" />
-            <span>More Sort Kinds...</span>
-          </button>
+        <div className="my-1 border-t border-[var(--border-subtle)]" />
 
-          <button
-            type="button"
-            onClick={() => onOpenFilterForColumn(field.id)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-          >
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span>Filter Column</span>
-          </button>
-
-          <div className="my-1 border-t border-[var(--border-subtle)]" />
-
-          <button
-            type="button"
-            onClick={() => onEditField(field.id)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-          >
-            <Pencil className="w-3.5 h-3.5 text-slate-400" />
-            <span>Edit Column</span>
-          </button>
-
-          {index > 0 && (
-            <button
-              type="button"
-              onClick={() => onMoveField(index, -1)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
-              <span>Move Left</span>
-            </button>
-          )}
-
-          {index < totalCount - 1 && (
-            <button
-              type="button"
-              onClick={() => onMoveField(index, 1)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-            >
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-              <span>Move Right</span>
-            </button>
-          )}
-
-          <div className="my-1 border-t border-[var(--border-subtle)]" />
-
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm(`Delete column "${field.name}"? Data in this column will be removed.`)) {
-                onDeleteField(field.id)
-              }
-            }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete Column</span>
-          </button>
-        </div>,
-        document.body
-      )}
+        <AnimatedMenuItem
+          onClick={() => {
+            if (window.confirm(`Delete column "${field.name}"? Data in this column will be removed.`)) {
+              onDeleteField(field.id)
+            }
+          }}
+          className="text-red-600 hover:bg-red-50"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Delete Column</span>
+        </AnimatedMenuItem>
+      </AnimatedPortalMenu>
     </th>
   )
 }
@@ -707,17 +656,13 @@ export default function RecordRegisterTable({
   const [filterSeedFieldId, setFilterSeedFieldId] = useState(null)
   const [totalsModalOpen, setTotalsModalOpen]   = useState(false)
 
-  // Floating Dock dropdowns (View & More ⋮) rendered cleanly in portals
+  // Floating Dock dropdowns (View & More ⋮) rendered cleanly via AnimatedPortalMenu
   const [viewMenuOpen, setViewMenuOpen]     = useState(false)
-  const [viewMenuPos, setViewMenuPos]       = useState({ top: 0, left: 0 })
   const [sheetMenuOpen, setSheetMenuOpen]   = useState(false)
-  const [sheetMenuPos, setSheetMenuPos]     = useState({ top: 0, left: 0 })
   const [canScrollRight, setCanScrollRight] = useState(false)
 
   const viewTriggerRef = useRef(null)
-  const viewMenuRef = useRef(null)
   const sheetTriggerRef = useRef(null)
-  const sheetMenuRef = useRef(null)
   const tableScrollRef = useRef(null)
 
   const fields = section?.fields || []
@@ -739,39 +684,6 @@ export default function RecordRegisterTable({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-
-  // Close portal menus cleanly on outside click / Escape
-  useEffect(() => {
-    if (!viewMenuOpen && !sheetMenuOpen) return
-    const handleOutside = (e) => {
-      if (
-        viewMenuOpen &&
-        !viewTriggerRef.current?.contains(e.target) &&
-        !viewMenuRef.current?.contains(e.target)
-      ) {
-        setViewMenuOpen(false)
-      }
-      if (
-        sheetMenuOpen &&
-        !sheetTriggerRef.current?.contains(e.target) &&
-        !sheetMenuRef.current?.contains(e.target)
-      ) {
-        setSheetMenuOpen(false)
-      }
-    }
-    const handleKey = (e) => {
-      if (e.key === 'Escape') {
-        setViewMenuOpen(false)
-        setSheetMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [viewMenuOpen, sheetMenuOpen])
 
   useEffect(() => {
     setSearch('')
@@ -811,20 +723,6 @@ export default function RecordRegisterTable({
     window.addEventListener('resize', checkTableScroll)
     return () => window.removeEventListener('resize', checkTableScroll)
   }, [checkTableScroll, visibleFields.length, processedRecords.length, effectiveView])
-
-  const openPortalMenu = (ref, setPos, setOpen, currentlyOpen, width) => {
-    if (currentlyOpen) {
-      setOpen(false)
-      return
-    }
-    const rect = ref.current?.getBoundingClientRect()
-    if (rect) {
-      const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
-      const top = Math.min(rect.bottom + 8, window.innerHeight - 230)
-      setPos({ top: Math.max(8, top), left })
-    }
-    setOpen(true)
-  }
 
   const handleCellChange = (record, fieldId, nextVal) => {
     const updatedData = {
@@ -960,7 +858,7 @@ export default function RecordRegisterTable({
                     ariaLabel="View options"
                     onClick={() => {
                       setSheetMenuOpen(false)
-                      openPortalMenu(viewTriggerRef, setViewMenuPos, setViewMenuOpen, viewMenuOpen, 208)
+                      setViewMenuOpen((prev) => !prev)
                     }}
                     className={
                       viewMenuOpen
@@ -995,7 +893,7 @@ export default function RecordRegisterTable({
                 ariaLabel="Sheet options"
                 onClick={() => {
                   setViewMenuOpen(false)
-                  openPortalMenu(sheetTriggerRef, setSheetMenuPos, setSheetMenuOpen, sheetMenuOpen, 196)
+                  setSheetMenuOpen((prev) => !prev)
                 }}
                 className={
                   sheetMenuOpen
@@ -1013,127 +911,115 @@ export default function RecordRegisterTable({
         </div>
       </div>
 
-      {/* View Dropdown Portal */}
-      {viewMenuOpen && createPortal(
-        <div
-          ref={viewMenuRef}
-          style={{ top: viewMenuPos.top, left: viewMenuPos.left }}
-          className="fixed w-52 bg-[var(--bg-card)] rounded-xl shadow-2xl border border-[var(--border-subtle)] py-1.5 z-[9999]"
+      {/* View Animated Dropdown Portal */}
+      <AnimatedPortalMenu
+        open={viewMenuOpen}
+        onClose={() => setViewMenuOpen(false)}
+        anchorRef={viewTriggerRef}
+        align="right"
+        widthPx={208}
+      >
+        <AnimatedMenuItem
+          onClick={() => setGroupByDate((prev) => !prev)}
+          className="justify-between text-slate-700 hover:bg-[var(--bg-input)]"
         >
-          <button
-            type="button"
-            onClick={() => setGroupByDate((prev) => !prev)}
-            className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          <span className="inline-flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-[#E08A1E]" />
+            <span>Group by Date</span>
+          </span>
+          <span
+            className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${
+              groupByDate ? 'bg-[#E08A1E] justify-end' : 'bg-slate-300 justify-start'
+            }`}
           >
-            <span className="inline-flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-[#E08A1E]" />
-              <span>Group by Date</span>
-            </span>
-            <span
-              className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${
-                groupByDate ? 'bg-[#E08A1E] justify-end' : 'bg-slate-300 justify-start'
-              }`}
-            >
-              <span className="w-3 h-3 rounded-full bg-white shadow-xs" />
-            </span>
-          </button>
+            <span className="w-3 h-3 rounded-full bg-white shadow-xs" />
+          </span>
+        </AnimatedMenuItem>
 
-          <button
-            type="button"
-            onClick={() => {
-              setViewModeOverride(effectiveView === 'cards' ? 'grid' : 'cards')
-              setViewMenuOpen(false)
-            }}
-            className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-          >
-            <span className="inline-flex items-center gap-2">
-              {effectiveView === 'cards'
-                ? <TableIcon className="w-3.5 h-3.5 text-slate-500" />
-                : <LayoutList className="w-3.5 h-3.5 text-slate-500" />
-              }
-              <span>{effectiveView === 'cards' ? 'Switch to Grid View' : 'Switch to Card View'}</span>
-            </span>
-          </button>
-
-          <div className="my-1 border-t border-[var(--border-subtle)]" />
-
-          <button
-            type="button"
-            onClick={() => {
-              setViewMenuOpen(false)
-              setSortSeedFieldId(null)
-              setSortModalOpen(true)
-            }}
-            className="w-full flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-          >
-            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
-            <span>Sort Options...</span>
-          </button>
-        </div>,
-        document.body
-      )}
-
-      {/* More (⋮) Sheet Menu Portal */}
-      {sheetMenuOpen && createPortal(
-        <div
-          ref={sheetMenuRef}
-          style={{ top: sheetMenuPos.top, left: sheetMenuPos.left }}
-          className="fixed w-48 bg-[var(--bg-card)] rounded-xl shadow-2xl border border-[var(--border-subtle)] py-1.5 z-[9999]"
-          onClick={() => setSheetMenuOpen(false)}
+        <AnimatedMenuItem
+          onClick={() => {
+            setViewModeOverride(effectiveView === 'cards' ? 'grid' : 'cards')
+            setViewMenuOpen(false)
+          }}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
         >
-          <button
-            type="button"
-            onClick={() => onCustomizeFields(null)}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          {effectiveView === 'cards'
+            ? <TableIcon className="w-3.5 h-3.5 text-slate-500" />
+            : <LayoutList className="w-3.5 h-3.5 text-slate-500" />
+          }
+          <span>{effectiveView === 'cards' ? 'Switch to Grid View' : 'Switch to Card View'}</span>
+        </AnimatedMenuItem>
+
+        <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+        <AnimatedMenuItem
+          onClick={() => {
+            setViewMenuOpen(false)
+            setSortSeedFieldId(null)
+            setSortModalOpen(true)
+          }}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
+        >
+          <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+          <span>Sort Options...</span>
+        </AnimatedMenuItem>
+      </AnimatedPortalMenu>
+
+      {/* More (⋮) Sheet Animated Dropdown Portal */}
+      <AnimatedPortalMenu
+        open={sheetMenuOpen}
+        onClose={() => setSheetMenuOpen(false)}
+        anchorRef={sheetTriggerRef}
+        align="right"
+        widthPx={192}
+        onMenuClick={() => setSheetMenuOpen(false)}
+      >
+        <AnimatedMenuItem
+          onClick={() => onCustomizeFields(null)}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5 text-[#E08A1E]" />
+          <span>Columns</span>
+        </AnimatedMenuItem>
+
+        {fields.length > 0 && (
+          <AnimatedMenuItem
+            onClick={() => setTotalsModalOpen(true)}
+            className="text-slate-700 hover:bg-[var(--bg-input)]"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-[#E08A1E]" />
-            <span>Columns</span>
-          </button>
+            <Sigma className="w-3.5 h-3.5 text-slate-400" />
+            <span>Totals & Averages</span>
+          </AnimatedMenuItem>
+        )}
 
-          {fields.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setTotalsModalOpen(true)}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-            >
-              <Sigma className="w-3.5 h-3.5 text-slate-400" />
-              <span>Totals & Averages</span>
-            </button>
-          )}
-
-          {processedRecords.length > 0 && (
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-400" />
-              <span>Export CSV</span>
-            </button>
-          )}
-
-          <div className="my-1 border-t border-[var(--border-subtle)]" />
-
-          <button
-            type="button"
-            onClick={() => onEditSection(section)}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+        {processedRecords.length > 0 && (
+          <AnimatedMenuItem
+            onClick={handleExportCsv}
+            className="text-slate-700 hover:bg-[var(--bg-input)]"
           >
-            <Pencil className="w-3.5 h-3.5 text-slate-400" />
-            <span>Rename Sheet</span>
-          </button>
+            <Download className="w-3.5 h-3.5 text-slate-400" />
+            <span>Export CSV</span>
+          </AnimatedMenuItem>
+        )}
 
-          <button
-            type="button"
-            onClick={() => onDeleteSection(section)}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete Sheet</span>
-          </button>
-        </div>,
-        document.body
-      )}
+        <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+        <AnimatedMenuItem
+          onClick={() => onEditSection(section)}
+          className="text-slate-700 hover:bg-[var(--bg-input)]"
+        >
+          <Pencil className="w-3.5 h-3.5 text-slate-400" />
+          <span>Rename Sheet</span>
+        </AnimatedMenuItem>
+
+        <AnimatedMenuItem
+          onClick={() => onDeleteSection(section)}
+          className="text-red-600 hover:bg-red-50"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Delete Sheet</span>
+        </AnimatedMenuItem>
+      </AnimatedPortalMenu>
 
       {/* ─── Active Sort & Filter Summary Pills ─────────────────────── */}
       {hasActiveControls && records.length > 0 && (

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { ArrowUpDown, ArrowUp, ArrowDown, Plus, X, RotateCcw } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
-import InputField, { inputClass } from '../ui/InputField'
+import InputField from '../ui/InputField'
+import AnimatedDropdown from '../ui/animated-dropdown'
 import { SORT_KINDS, resolveSortKind } from '../../utils/sheetUtils'
 
 function getDirectionLabels(field, kind) {
@@ -110,34 +111,29 @@ export default function SortModal({
 
                 {/* Column Picker */}
                 <InputField label="Column">
-                  <select
-                    className={inputClass}
+                  <AnimatedDropdown
                     value={lvl.key}
-                    onChange={(e) => updateLevel(idx, { key: e.target.value, kind: 'auto' })}
-                  >
-                    <option value="__entryDate">Entry Date (Header Group)</option>
-                    {fields.map((f) => (
-                      <option key={f.id} value={String(f.id)}>
-                        {displayLabels[f.id] || f.name}
-                      </option>
-                    ))}
-                    <option value="__createdAt">Created Time (Entry Order)</option>
-                    <option value="__updatedAt">Last Updated Time</option>
-                  </select>
+                    onChange={(val) => updateLevel(idx, { key: val, kind: 'auto' })}
+                    options={[
+                      { value: '__entryDate', label: 'Entry Date (Header Group)' },
+                      ...fields.map((f) => ({
+                        value: String(f.id),
+                        label: displayLabels[f.id] || f.name,
+                      })),
+                      { value: '__createdAt', label: 'Created Time (Entry Order)' },
+                      { value: '__updatedAt', label: 'Last Updated Time' },
+                    ]}
+                  />
                 </InputField>
 
                 {/* Sort Kind Picker */}
                 {lvl.key !== '__entryDate' && lvl.key !== '__createdAt' && lvl.key !== '__updatedAt' && (
                   <InputField label="Sort Method (Kind)">
-                    <select
-                      className={inputClass}
+                    <AnimatedDropdown
                       value={lvl.kind}
-                      onChange={(e) => updateLevel(idx, { kind: e.target.value })}
-                    >
-                      {SORT_KINDS.map((k) => (
-                        <option key={k.value} value={k.value}>{k.label}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => updateLevel(idx, { kind: val })}
+                      options={SORT_KINDS}
+                    />
                   </InputField>
                 )}
 

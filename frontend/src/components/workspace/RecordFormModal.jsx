@@ -3,6 +3,7 @@ import { Plus, Save, AlertTriangle, Loader2, CheckCircle2, Trash2, Copy, Calcula
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import InputField, { inputClass } from '../ui/InputField'
+import AnimatedDropdown from '../ui/animated-dropdown'
 import {
   evaluateFormulaValue,
   FORMULA_OPERATORS,
@@ -294,17 +295,12 @@ export default function RecordFormModal({
                         })}
                       </div>
                     ) : (
-                      <select
-                        ref={isFirst ? firstInputRef : null}
-                        className={inputClass}
+                      <AnimatedDropdown
+                        placeholder={`Select ${f.name}...`}
                         value={val}
-                        onChange={(e) => handleChange(f.id, e.target.value)}
-                      >
-                        <option value="">Select {f.name}...</option>
-                        {(f.options || []).map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
+                        onChange={(nextVal) => handleChange(f.id, nextVal)}
+                        options={f.options || []}
+                      />
                     )}
                   </div>
                 ) : f.fieldType === 'currency' ? (

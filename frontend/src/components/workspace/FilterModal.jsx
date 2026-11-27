@@ -3,6 +3,7 @@ import { Filter, Plus, X, RotateCcw } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import { inputClass } from '../ui/InputField'
+import AnimatedDropdown from '../ui/animated-dropdown'
 import { isNumericColumn } from '../../utils/sheetUtils'
 
 function getDefaultOp(field) {
@@ -174,11 +175,9 @@ export default function FilterModal({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <select
-                      className={inputClass}
+                    <AnimatedDropdown
                       value={rule.fieldId}
-                      onChange={(e) => {
-                        const nextVal = e.target.value
+                      onChange={(nextVal) => {
                         const nextField = nextVal === '__entryDate'
                           ? '__entryDate'
                           : fields.find((f) => String(f.id) === nextVal)
@@ -190,24 +189,20 @@ export default function FilterModal({
                           values: [],
                         })
                       }}
-                    >
-                      <option value="__entryDate">Entry Date</option>
-                      {fields.map((f) => (
-                        <option key={f.id} value={String(f.id)}>
-                          {displayLabels[f.id] || f.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '__entryDate', label: 'Entry Date' },
+                        ...fields.map((f) => ({
+                          value: String(f.id),
+                          label: displayLabels[f.id] || f.name,
+                        })),
+                      ]}
+                    />
 
-                    <select
-                      className={inputClass}
+                    <AnimatedDropdown
                       value={rule.op}
-                      onChange={(e) => updateRule(idx, { op: e.target.value })}
-                    >
-                      {ops.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => updateRule(idx, { op: val })}
+                      options={ops}
+                    />
                   </div>
 
                   {/* Rule Value Inputs */}

@@ -7,6 +7,7 @@ import {
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import InputField, { inputClass } from '../ui/InputField'
+import AnimatedDropdown from '../ui/animated-dropdown'
 import { FORMULA_OPERATORS, isNumericColumn } from '../../utils/sheetUtils'
 
 export const FIELD_TYPES = [
@@ -321,15 +322,11 @@ export default function CustomFieldBuilderModal({
             </InputField>
 
             <InputField label="Column Type">
-              <select
-                className={inputClass}
+              <AnimatedDropdown
                 value={form.fieldType}
-                onChange={(e) => setForm({ ...form, fieldType: e.target.value })}
-              >
-                {FIELD_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
+                onChange={(val) => setForm({ ...form, fieldType: val })}
+                options={FIELD_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+              />
             </InputField>
           </div>
 
@@ -361,37 +358,25 @@ export default function CustomFieldBuilderModal({
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <select
-                      className={inputClass}
+                    <AnimatedDropdown
+                      placeholder="First column..."
                       value={form.leftFieldId}
-                      onChange={(e) => setForm({ ...form, leftFieldId: e.target.value })}
-                    >
-                      <option value="">First column...</option>
-                      {formulaSourceFields.map((sf) => (
-                        <option key={sf.id} value={String(sf.id)}>{sf.name}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setForm({ ...form, leftFieldId: val })}
+                      options={formulaSourceFields.map((sf) => ({ value: String(sf.id), label: sf.name }))}
+                    />
 
-                    <select
-                      className={inputClass}
+                    <AnimatedDropdown
                       value={form.operator}
-                      onChange={(e) => setForm({ ...form, operator: e.target.value })}
-                    >
-                      {FORMULA_OPERATORS.map((op) => (
-                        <option key={op.value} value={op.value}>{op.label}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setForm({ ...form, operator: val })}
+                      options={FORMULA_OPERATORS.map((op) => ({ value: op.value, label: op.label }))}
+                    />
 
-                    <select
-                      className={inputClass}
+                    <AnimatedDropdown
+                      placeholder="Second column..."
                       value={form.rightFieldId}
-                      onChange={(e) => setForm({ ...form, rightFieldId: e.target.value })}
-                    >
-                      <option value="">Second column...</option>
-                      {formulaSourceFields.map((sf) => (
-                        <option key={sf.id} value={String(sf.id)}>{sf.name}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setForm({ ...form, rightFieldId: val })}
+                      options={formulaSourceFields.map((sf) => ({ value: String(sf.id), label: sf.name }))}
+                    />
                   </div>
 
                   <div className="flex items-center justify-between text-xs">

@@ -3,6 +3,7 @@ import { Plus, Save, AlertTriangle, Loader2 } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import InputField, { inputClass } from '../ui/InputField'
+import AnimatedDropdown from '../ui/animated-dropdown'
 
 const STATUS_OPTIONS = [
   { value: 'planning',  label: 'Planning' },
@@ -119,15 +120,11 @@ export default function ProjectFormModal({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InputField label="Status">
-            <select
-              className={inputClass}
+            <AnimatedDropdown
               value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+              onChange={(val) => setForm({ ...form, status: val })}
+              options={STATUS_OPTIONS}
+            />
           </InputField>
 
           <InputField label="Start Date">
