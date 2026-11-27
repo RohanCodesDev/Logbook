@@ -1,4 +1,5 @@
-const rawBase = import.meta.env.VITE_API_URL?.trim();
+const DEFAULT_PROD_API = 'https://logbook-1-dyvu.onrender.com';
+const rawBase = import.meta.env.VITE_API_URL?.trim() || (import.meta.env.PROD ? DEFAULT_PROD_API : '');
 const BASE = rawBase
   ? `${rawBase.replace(/\/+$/, '').replace(/\/api$/, '')}/api`
   : '/api';
