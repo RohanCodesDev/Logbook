@@ -49,3 +49,17 @@ export const getRecords   = (sectionId)                  => request(`/sections/$
 export const createRecord = (sectionId, data, entryDate) => request(`/sections/${sectionId}/records`, { method: 'POST', body: JSON.stringify({ data, entryDate }) });
 export const updateRecord = (recordId, data, entryDate)  => request(`/records/${recordId}`, { method: 'PUT', body: JSON.stringify({ data, entryDate }) });
 export const deleteRecord = (recordId)                   => request(`/records/${recordId}`, { method: 'DELETE' });
+
+// ─── Drivers, Operators & Helpers ────────────────────────────────────────────
+
+export const getCrewMembers   = ()            => request('/crew');
+export const createCrewMember = (payload)     => request('/crew', { method: 'POST', body: JSON.stringify(payload) });
+export const updateCrewMember = (id, payload) => request(`/crew/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const deleteCrewMember = (id)          => request(`/crew/${id}`, { method: 'DELETE' });
+
+// ─── Agreements ──────────────────────────────────────────────────────────────
+
+export const getAgreements   = ()            => request('/agreements');
+export const createAgreement = (payload)     => request('/agreements', { method: 'POST', body: JSON.stringify(payload) });
+export const updateAgreement = (id, payload) => request(`/agreements/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+export const deleteAgreement = (id)          => request(`/agreements/${id}`, { method: 'DELETE' });

@@ -34,19 +34,19 @@ import {
   computeSheetStats,
 } from '../../utils/sheetUtils'
 
-function getColumnWidthClass(fieldType) {
-  switch (fieldType) {
-    case 'date':
-      return 'w-[126px] min-w-[116px] max-w-[136px]'
-    case 'checkbox':
-      return 'w-[92px] min-w-[84px] max-w-[100px]'
-    case 'number':
-    case 'currency':
-    case 'formula':
-      return 'w-[132px] min-w-[116px]'
-    default:
-      return 'min-w-[155px]'
+function getColumnWidthClass(fieldOrType) {
+  const fieldType = typeof fieldOrType === 'string' ? fieldOrType : fieldOrType?.fieldType
+  if (fieldType === 'date') return 'w-[126px] min-w-[116px] max-w-[136px]'
+  if (fieldType === 'checkbox') return 'w-[92px] min-w-[84px] max-w-[100px]'
+  if (
+    fieldType === 'number' ||
+    fieldType === 'currency' ||
+    fieldType === 'formula' ||
+    (typeof fieldOrType === 'object' && isNumericColumn(fieldOrType))
+  ) {
+    return 'w-[132px] min-w-[116px]'
   }
+  return 'min-w-[155px]'
 }
 
 /**
@@ -185,12 +185,14 @@ function EditableCell({
     }
   }, [isEditing])
 
+  const isNumeric = isNumericColumn(field)
+
   if (field.fieldType === 'formula') {
     return (
       <div
         onClick={() => onEditFormulaColumn?.(field.id)}
         title="Auto-calculated formula column (click to configure)"
-        className="w-full min-h-[42px] px-3 py-2 flex items-center justify-between gap-2 cursor-pointer select-none text-sm bg-[#FEF6E9]/25 hover:bg-[#FEF6E9]/60 transition-colors"
+        className="w-full min-h-[42px] px-3 py-2 flex items-center justify-center text-center gap-2 cursor-pointer select-none text-sm bg-[#FEF6E9]/25 hover:bg-[#FEF6E9]/60 transition-colors tabular-nums"
       >
         {formatDisplayValue(field, value)}
       </div>
@@ -271,7 +273,7 @@ function EditableCell({
             { value: '', label: '— Clear —' },
             ...(field.options || []).map((opt) => ({ value: opt, label: opt })),
           ]}
-          buttonClassName="h-10 px-2 py-1 rounded bg-[#FEF6E9] border-[#E08A1E] text-sm"
+          buttonClassName="h-10 px-2 py-1 rounded bg-[#FEF6E9] border-[#E08A1E] text-sm justify-center text-center"
         />
       )
     }
@@ -290,7 +292,7 @@ function EditableCell({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder="0.00"
-            className="w-full h-10 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+            className="w-full h-10 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium text-center tabular-nums border border-[#E08A1E] rounded focus:outline-none"
           />
         </div>
       )
@@ -308,7 +310,7 @@ function EditableCell({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder="0"
-          className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+          className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium text-center tabular-nums border border-[#E08A1E] rounded focus:outline-none"
         />
       )
     }
@@ -325,7 +327,7 @@ function EditableCell({
           }}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
-          className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+          className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium text-center border border-[#E08A1E] rounded focus:outline-none"
         />
       )
     }
@@ -339,7 +341,7 @@ function EditableCell({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder="Type here..."
-        className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+        className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium text-center border border-[#E08A1E] rounded focus:outline-none"
       />
     )
   }
@@ -354,7 +356,9 @@ function EditableCell({
           startEditing()
         }
       }}
-      className="w-full min-h-[42px] px-3 py-2 flex items-center cursor-pointer transition-colors select-none text-sm font-medium rounded hover:bg-[#FEF6E9]/70 text-[var(--text-primary)]"
+      className={`w-full min-h-[42px] px-3 py-2 flex items-center justify-center text-center cursor-pointer transition-colors select-none text-sm font-medium rounded hover:bg-[#FEF6E9]/70 text-[var(--text-primary)] ${
+        isNumeric ? 'tabular-nums' : ''
+      }`}
     >
       {formatDisplayValue(field, value)}
     </div>
@@ -399,13 +403,15 @@ function ColumnHeaderCell({
 
   return (
     <th
-      className={`group/th relative px-3 py-2.5 border-r border-[var(--border-grid)] uppercase tracking-wide text-xs sm:text-[13px] font-bold text-slate-850 text-[var(--text-primary)] whitespace-nowrap select-none ${getColumnWidthClass(field.fieldType)}`}
+      className={`group/th relative px-2.5 py-2.5 border-r border-[var(--border-grid)] uppercase tracking-wide text-xs sm:text-[13px] font-bold text-slate-850 text-[var(--text-primary)] whitespace-nowrap select-none ${getColumnWidthClass(field)}`}
     >
-      <div className="flex items-center justify-between gap-1">
+      <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_1.25rem] items-center gap-1">
+        <span aria-hidden="true" className="w-5" />
+
         <button
           type="button"
           onClick={() => onQuickSort(field)}
-          className="inline-flex items-center gap-1.5 min-w-0 hover:text-[#C97814] transition-colors text-left"
+          className="justify-self-center inline-flex items-center justify-center gap-1.5 min-w-0 max-w-full hover:text-[#C97814] transition-colors text-center"
           title="Click to sort by this column"
         >
           {getFieldIcon(field)}
@@ -426,8 +432,8 @@ function ColumnHeaderCell({
           ref={triggerRef}
           type="button"
           onClick={() => setMenuOpen((prev) => !prev)}
-          className={`p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-[#E6E1D6]/70 transition-all flex-shrink-0 ${
-            menuOpen ? 'opacity-100' : 'sm:opacity-0 sm:group-hover/th:opacity-100 focus-visible:opacity-100'
+          className={`justify-self-end p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-[#E6E1D6]/70 transition-all flex-shrink-0 ${
+            menuOpen ? 'opacity-100' : 'sm:opacity-0 sm:group-hover/th:opacity-100 [@media(hover:none)]:opacity-100 focus-visible:opacity-100'
           }`}
           title="Column Options"
         >
@@ -532,9 +538,10 @@ const QUICK_COLUMN_TYPES = [
 ]
 
 /**
- * Blank trailing column header — click anywhere in the blank column to add a new column inline.
+ * Compact "+ Col" button pinned to the right edge of the table header — opens inline column popover
+ * without reserving an empty trailing column across every table row.
  */
-function BlankColumnHeader({
+function PinnedAddColumnButton({
   isOpen,
   existingCount,
   onOpen,
@@ -542,35 +549,28 @@ function BlankColumnHeader({
   onCreateColumn,
   onOpenFullBuilder,
 }) {
-  const [name, setName]             = useState('')
-  const [fieldType, setFieldType]   = useState('text')
-  const [typeMenuOpen, setTypeMenuOpen] = useState(false)
-  const [saving, setSaving]         = useState(false)
+  const [name, setName]           = useState('')
+  const [fieldType, setFieldType] = useState('text')
+  const [saving, setSaving]       = useState(false)
 
-  const headerRef      = useRef(null)
-  const inputRef       = useRef(null)
-  const typeTriggerRef = useRef(null)
-  const savingRef      = useRef(false)
-  const nameRef        = useRef('')
-  const typeRef        = useRef('text')
-  const typeMenuRef    = useRef(false)
+  const triggerRef = useRef(null)
+  const inputRef   = useRef(null)
+  const savingRef  = useRef(false)
+  const nameRef    = useRef('')
+  const typeRef    = useRef('text')
 
   nameRef.current = name
   typeRef.current = fieldType
-  typeMenuRef.current = typeMenuOpen
 
   useEffect(() => {
     if (!isOpen) {
       setName('')
       setFieldType('text')
-      setTypeMenuOpen(false)
       savingRef.current = false
       return
     }
-    requestAnimationFrame(() => {
-      headerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
-      inputRef.current?.focus()
-    })
+    const timer = setTimeout(() => inputRef.current?.focus(), 40)
+    return () => clearTimeout(timer)
   }, [isOpen])
 
   const submitColumn = async (allowDefaultName = false) => {
@@ -601,40 +601,46 @@ function BlankColumnHeader({
     }
   }
 
-  const handleBlur = () => {
-    setTimeout(() => {
-      if (typeMenuRef.current) return
-      if (headerRef.current?.contains(document.activeElement)) return
-      if (nameRef.current.trim()) {
-        submitColumn(false)
-      } else {
-        onCancel()
-      }
-    }, 90)
-  }
-
-  const activeTypeMeta = QUICK_COLUMN_TYPES.find((t) => t.value === fieldType) || QUICK_COLUMN_TYPES[0]
-  const ActiveTypeIcon = activeTypeMeta.icon
-
   return (
-    <th
-      ref={headerRef}
-      className={`no-print px-2 py-2 border-r border-dashed border-[var(--border-grid)] whitespace-nowrap select-none transition-all ${
-        isOpen ? 'min-w-[225px] bg-[#FEF6E9]/60' : 'min-w-[132px]'
-      }`}
-    >
-      {isOpen ? (
-        <div className="flex items-center gap-1">
-          <button
-            ref={typeTriggerRef}
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setTypeMenuOpen((prev) => !prev)}
-            title={`Column type: ${activeTypeMeta.label}`}
-            className="h-7 px-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:border-[#E08A1E] inline-flex items-center justify-center flex-shrink-0 transition-colors"
-          >
-            <ActiveTypeIcon className={`w-3.5 h-3.5 ${activeTypeMeta.color}`} />
-          </button>
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={onOpen}
+        title="Add a new column"
+        aria-label="Add new column"
+        className={`inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md text-[11px] font-bold uppercase tracking-wide transition-colors ${
+          isOpen
+            ? 'bg-[#FEF6E9] text-[#C97814] border border-[#E08A1E]'
+            : 'text-slate-500 hover:text-[#C97814] hover:bg-[#FEF6E9] border border-transparent hover:border-[#F5BD6E]'
+        }`}
+      >
+        <Plus className="w-3.5 h-3.5 text-[#E08A1E]" />
+        <span className="hidden sm:inline">Col</span>
+      </button>
+
+      <AnimatedPortalMenu
+        open={isOpen}
+        onClose={onCancel}
+        anchorRef={triggerRef}
+        align="right"
+        widthPx={256}
+        className="p-2.5 font-normal normal-case tracking-normal text-left"
+      >
+        <div className="space-y-2.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              New Column
+            </span>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="p-0.5 rounded text-slate-400 hover:text-slate-600"
+              aria-label="Close"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           <input
             ref={inputRef}
@@ -642,84 +648,70 @@ function BlankColumnHeader({
             value={name}
             disabled={saving}
             onChange={(e) => setName(e.target.value)}
-            onBlur={handleBlur}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
                 submitColumn(true)
               } else if (e.key === 'Escape') {
                 e.preventDefault()
-                setTypeMenuOpen(false)
                 onCancel()
               }
             }}
-            placeholder={`Column ${existingCount + 1}...`}
-            className="w-full min-w-[110px] h-7 px-2 rounded bg-[var(--bg-card)] text-[var(--text-primary)] text-xs sm:text-[13px] font-bold border border-[#E08A1E] focus:outline-none normal-case tracking-normal"
+            placeholder={`Column ${existingCount + 1} name...`}
+            className="w-full h-8 px-2.5 rounded-lg bg-[var(--bg-canvas)] text-[var(--text-primary)] text-xs font-semibold border border-[#E08A1E] focus:outline-none"
           />
 
-          <button
-            type="button"
-            disabled={saving}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => submitColumn(true)}
-            title="Save column"
-            className="h-7 w-7 rounded bg-[#E08A1E] hover:bg-[#C97814] text-white inline-flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-          </button>
-
-          <AnimatedPortalMenu
-            open={typeMenuOpen}
-            onClose={() => setTypeMenuOpen(false)}
-            anchorRef={typeTriggerRef}
-            align="left"
-            widthPx={196}
-            className="font-normal normal-case tracking-normal text-left"
-          >
+          <div className="grid grid-cols-2 gap-1">
             {QUICK_COLUMN_TYPES.map((t) => {
               const Icon = t.icon
               const isSelected = fieldType === t.value
               return (
-                <AnimatedMenuItem
+                <button
                   key={t.value}
+                  type="button"
                   onClick={() => {
                     setFieldType(t.value)
-                    setTypeMenuOpen(false)
                     inputRef.current?.focus()
                   }}
-                  className={isSelected ? 'bg-[#FEF6E9] text-[#C97814] font-semibold' : 'text-slate-700 hover:bg-[var(--bg-input)]'}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-colors text-left ${
+                    isSelected
+                      ? 'bg-[#FEF6E9] border-[#E08A1E] text-[#C97814] font-semibold'
+                      : 'bg-transparent border-transparent text-slate-600 hover:bg-[var(--bg-input)]'
+                  }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${t.color}`} />
-                  <span>{t.label}</span>
-                </AnimatedMenuItem>
+                  <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${t.color}`} />
+                  <span className="truncate">{t.label}</span>
+                </button>
               )
             })}
-            <div className="my-1 border-t border-[var(--border-subtle)]" />
-            <AnimatedMenuItem
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[var(--border-subtle)]">
+            <button
+              type="button"
               onClick={() => {
-                setTypeMenuOpen(false)
                 onCancel()
                 onOpenFullBuilder()
               }}
-              className="text-slate-700 hover:bg-[var(--bg-input)]"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-[#C97814] transition-colors"
             >
-              <Calculator className="w-3.5 h-3.5 text-[#E08A1E]" />
+              <Calculator className="w-3 h-3 text-[#E08A1E]" />
               <span>Dropdown / Formula...</span>
-            </AnimatedMenuItem>
-          </AnimatedPortalMenu>
+            </button>
+
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => submitColumn(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#E08A1E] hover:bg-[#C97814] text-white text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              <span>Add</span>
+            </button>
+          </div>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs sm:text-[13px] font-bold uppercase tracking-wide text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9]/70 transition-colors text-left"
-          title="Click to add a new column"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New column</span>
-        </button>
-      )}
-    </th>
+      </AnimatedPortalMenu>
+    </>
   )
 }
 
@@ -732,7 +724,6 @@ function BlankEntryRow({
   entryDate,
   showSerial,
   onCreateRow,
-  onOpenBlankColumn,
   onOpenFullModal,
 }) {
   const [draftData, setDraftData]         = useState({})
@@ -884,6 +875,7 @@ function BlankEntryRow({
         const key = String(f.id)
         const val = draftData[key] ?? ''
         const isEditingCell = activeFieldId === f.id
+        const isNumeric = isNumericColumn(f)
 
         if (f.fieldType === 'formula') {
           const previewVal = hasAnyValue(draftData)
@@ -893,9 +885,9 @@ function BlankEntryRow({
             <td
               key={f.id}
               onClick={() => firstEditableFieldId && setActiveFieldId(firstEditableFieldId)}
-              className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
+              className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f)}`}
             >
-              <div className="w-full min-h-[38px] px-3 py-1.5 flex items-center text-sm">
+              <div className="w-full min-h-[38px] px-3 py-1.5 flex items-center justify-center text-center text-sm tabular-nums">
                 {previewVal !== null && previewVal !== undefined ? (
                   formatDisplayValue(f, previewVal)
                 ) : (
@@ -914,7 +906,7 @@ function BlankEntryRow({
                 const next = updateDraftValue(f.id, !Boolean(draftRef.current[key]))
                 commitRow(next, true)
               }}
-              className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
+              className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f)}`}
             >
               <div className="w-full min-h-[38px] flex items-center justify-center text-slate-300 hover:text-[#C97814]">
                 <Plus className="w-3 h-3 opacity-0 group-hover/blank:opacity-70 transition-opacity" />
@@ -926,7 +918,7 @@ function BlankEntryRow({
         return (
           <td
             key={f.id}
-            className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+            className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle ${getColumnWidthClass(f)}`}
           >
             {isEditingCell ? (
               f.fieldType === 'select' ? (
@@ -966,7 +958,7 @@ function BlankEntryRow({
                     onBlur={handleCellBlur}
                     onKeyDown={(e) => handleKeyDown(f, e)}
                     placeholder="0.00"
-                    className="w-full h-9 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-semibold border border-[#E08A1E] rounded focus:outline-none"
+                    className="w-full h-9 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-semibold text-center tabular-nums border border-[#E08A1E] rounded focus:outline-none"
                   />
                 </div>
               ) : f.fieldType === 'number' ? (
@@ -980,7 +972,7 @@ function BlankEntryRow({
                   onBlur={handleCellBlur}
                   onKeyDown={(e) => handleKeyDown(f, e)}
                   placeholder="0"
-                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium text-center tabular-nums border border-[#E08A1E] rounded focus:outline-none"
                 />
               ) : f.fieldType === 'date' ? (
                 <input
@@ -990,7 +982,7 @@ function BlankEntryRow({
                   onChange={(e) => updateDraftValue(f.id, e.target.value)}
                   onBlur={handleCellBlur}
                   onKeyDown={(e) => handleKeyDown(f, e)}
-                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium text-center border border-[#E08A1E] rounded focus:outline-none"
                 />
               ) : (
                 <input
@@ -1001,13 +993,16 @@ function BlankEntryRow({
                   onBlur={handleCellBlur}
                   onKeyDown={(e) => handleKeyDown(f, e)}
                   placeholder={`Enter ${f.name}...`}
-                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium text-center border border-[#E08A1E] rounded focus:outline-none"
                 />
               )
             ) : (
               <div
                 onClick={() => setActiveFieldId(f.id)}
-                className="w-full min-h-[38px] px-3 py-1.5 flex items-center cursor-pointer transition-colors select-none text-sm hover:bg-[#FEF6E9]/70"
+                title={f.id === firstEditableFieldId ? 'Click a cell to type a row inline' : undefined}
+                className={`w-full min-h-[38px] px-3 py-1.5 flex items-center justify-center text-center cursor-pointer transition-colors select-none text-sm hover:bg-[#FEF6E9]/70 ${
+                  isNumeric ? 'tabular-nums' : ''
+                }`}
               >
                 {val !== '' && val !== undefined ? (
                   formatDisplayValue(f, val)
@@ -1025,20 +1020,11 @@ function BlankEntryRow({
         )
       })}
 
-      {/* Clicking blank trailing column cell also opens New Column */}
-      <td
-        onClick={onOpenBlankColumn}
-        title="Click to add a new column"
-        className="p-0 border-r border-dashed border-[var(--border-grid)] hover:bg-[#FEF6E9]/45 cursor-pointer"
-      >
-        <div className="min-h-[38px]" />
-      </td>
-
       {/* Quiet quick-create / full-modal controls */}
       <td className="px-2 py-1 text-right whitespace-nowrap">
         <div
           className={`inline-flex items-center gap-0.5 transition-opacity ${
-            isRowActive ? 'opacity-100' : 'sm:opacity-0 sm:group-hover/blank:opacity-100 focus-within:opacity-100'
+            isRowActive ? 'opacity-100' : 'sm:opacity-0 sm:group-hover/blank:opacity-100 [@media(hover:none)]:opacity-100 focus-within:opacity-100'
           }`}
         >
           <button
@@ -1371,6 +1357,24 @@ export default function RecordRegisterTable({
   const viewTriggerRef = useRef(null)
   const sheetTriggerRef = useRef(null)
   const tableScrollRef = useRef(null)
+  const longPressTimerRef = useRef(null)
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const startRowLongPress = useCallback((record) => {
+    clearLongPress()
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null
+      onEditEntry(record)
+    }, 520)
+  }, [clearLongPress, onEditEntry])
+
+  useEffect(() => clearLongPress, [clearLongPress])
 
   const fields = section?.fields || []
   const effectiveView = viewModeOverride || (isMobileViewport ? 'cards' : 'grid')
@@ -1525,7 +1529,7 @@ export default function RecordRegisterTable({
   })
 
   const hasActiveControls = sortLevels.length > 0 || columnFilters.length > 0 || Boolean(search.trim())
-  const totalGridCols = visibleFields.length + 3 // left gutter/SL + visibleFields + blank column + Actions
+  const totalGridCols = visibleFields.length + 2 // left gutter/SL + visibleFields + Actions
   const gridGroups = groupByDate
     ? (dateGroups.length > 0
         ? dateGroups
@@ -1758,11 +1762,11 @@ export default function RecordRegisterTable({
 
             {/* + Add Entry (or + Column if 0 columns) */}
             <DockItem
-              ariaLabel={fields.length > 0 ? 'Add entry' : 'Add column'}
+              ariaLabel={fields.length > 0 ? 'Add entry (form)' : 'Add column'}
               onClick={() => (fields.length > 0 ? onAddEntry() : onCustomizeFields(null))}
               className="bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-hover)] shadow-xs"
             >
-              <DockLabel>{fields.length > 0 ? 'Add Entry' : 'Add Column'}</DockLabel>
+              <DockLabel>{fields.length > 0 ? 'Add Entry (Form)' : 'Add Column'}</DockLabel>
               <DockIcon>
                 <Plus className="w-full h-full stroke-[2.4]" />
               </DockIcon>
@@ -1924,7 +1928,7 @@ export default function RecordRegisterTable({
 
       {/* ─── Multi-Row Selection Action Bar ─────────────────────────── */}
       {selectedIds.size > 0 && (
-        <div className="no-print flex flex-wrap items-center justify-between gap-2.5 px-4 sm:px-6 py-2 bg-[#1E242B] text-white text-xs border-b border-[#2C333C]">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2.5 px-4 sm:px-6 py-2.5 liquid-glass-dark text-zinc-100 text-xs">
           <div className="flex items-center gap-3">
             <span className="font-bold text-[#F5BD6E] tabular-nums">
               {selectedIds.size} {selectedIds.size === 1 ? 'row' : 'rows'} selected
@@ -2289,16 +2293,16 @@ export default function RecordRegisterTable({
                         )
                       })}
 
-                      <BlankColumnHeader
-                        isOpen={addingColumn}
-                        existingCount={fields.length}
-                        onOpen={openQuickAddColumn}
-                        onCancel={() => setAddingColumn(false)}
-                        onCreateColumn={(payload) => onAddColumn?.(payload)}
-                        onOpenFullBuilder={() => onCustomizeFields(null)}
-                      />
-
-                      <th className="no-print px-2 py-2.5 w-16 sm:w-20 text-right text-[11px] uppercase tracking-wider text-slate-400" />
+                      <th className="no-print px-2 py-2 w-16 sm:w-20 text-right whitespace-nowrap">
+                        <PinnedAddColumnButton
+                          isOpen={addingColumn}
+                          existingCount={fields.length}
+                          onOpen={openQuickAddColumn}
+                          onCancel={() => setAddingColumn(false)}
+                          onCreateColumn={(payload) => onAddColumn?.(payload)}
+                          onOpenFullBuilder={() => onCustomizeFields(null)}
+                        />
+                      </th>
                     </tr>
                   </thead>
 
@@ -2351,6 +2355,10 @@ export default function RecordRegisterTable({
                             return (
                               <tr
                                 key={rec.id}
+                                onTouchStart={() => startRowLongPress(rec)}
+                                onTouchEnd={clearLongPress}
+                                onTouchMove={clearLongPress}
+                                onTouchCancel={clearLongPress}
                                 className={`group border-b border-[var(--border-grid)] last:border-b-0 transition-colors ${
                                   isSelected
                                     ? 'bg-[#FEF6E9]/85'
@@ -2397,7 +2405,7 @@ export default function RecordRegisterTable({
                                   return (
                                     <td
                                       key={f.id}
-                                      className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+                                      className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle ${getColumnWidthClass(f)}`}
                                     >
                                       <EditableCell
                                         field={f}
@@ -2417,18 +2425,9 @@ export default function RecordRegisterTable({
                                   )
                                 })}
 
-                                {/* Clicking blank trailing column cell opens New Column inline */}
-                                <td
-                                  onClick={openQuickAddColumn}
-                                  title="Click to add a new column"
-                                  className="no-print p-0 border-r border-dashed border-[var(--border-grid)] hover:bg-[#FEF6E9]/45 cursor-pointer"
-                                >
-                                  <div className="min-h-[42px]" />
-                                </td>
-
-                                {/* Quiet row actions: hover-only on desktop, single ⋮ on mobile */}
+                                {/* Quiet row actions: hover-only on desktop, always visible on touch / mobile */}
                                 <td className="no-print px-2 py-1.5 text-right whitespace-nowrap">
-                                  <div className="hidden sm:inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                  <div className="hidden sm:inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus-within:opacity-100 transition-opacity">
                                     {onDuplicateRecord && (
                                       <button
                                         type="button"
@@ -2477,7 +2476,6 @@ export default function RecordRegisterTable({
                               entryDate={group.dateKey}
                               showSerial={!groupByDate}
                               onCreateRow={quickCreateHandler}
-                              onOpenBlankColumn={openQuickAddColumn}
                               onOpenFullModal={() => onAddEntry(group.dateKey)}
                             />
                           )}
@@ -2496,6 +2494,16 @@ export default function RecordRegisterTable({
                         {visibleFields.map((f) => {
                           const stat = statsByField[f.id]
                           if (stat) {
+                            if (stat.count === 0) {
+                              return (
+                                <td
+                                  key={f.id}
+                                  className="px-3 py-2 border-r border-[var(--border-grid)] whitespace-nowrap text-center text-slate-300 font-normal select-none"
+                                >
+                                  —
+                                </td>
+                              )
+                            }
                             const mode = footerAggMode[f.id] || 'sum'
                             const modeLabel = mode === 'sum' ? 'Sum' : mode === 'avg' ? 'Avg' : 'Count'
                             const valNum = mode === 'sum' ? stat.sum : mode === 'avg' ? stat.avg : stat.count
@@ -2514,7 +2522,7 @@ export default function RecordRegisterTable({
                                   type="button"
                                   onClick={() => cycleFooterMode(f)}
                                   title="Click to switch between Sum / Avg / Count"
-                                  className="w-full flex items-center justify-between gap-2 text-left hover:text-[#C97814] transition-colors"
+                                  className="w-full flex items-center justify-center gap-1.5 text-center hover:text-[#C97814] transition-colors"
                                 >
                                   <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
                                     {modeLabel}
@@ -2532,13 +2540,12 @@ export default function RecordRegisterTable({
                           return (
                             <td
                               key={f.id}
-                              className="px-3 py-2 border-r border-[var(--border-grid)] whitespace-nowrap text-[11px] font-medium text-slate-400 tabular-nums"
+                              className="px-3 py-2 border-r border-[var(--border-grid)] whitespace-nowrap text-center text-[11px] font-medium text-slate-400 tabular-nums"
                             >
-                              {filledCount > 0 ? `${filledCount} filled` : '—'}
+                              {filledCount > 0 ? `${filledCount} filled` : <span className="text-slate-300 font-normal">—</span>}
                             </td>
                           )
                         })}
-                        <td className="no-print border-r border-dashed border-[var(--border-grid)]" />
                         <td className="no-print px-2 py-2" />
                       </tr>
                     </tfoot>

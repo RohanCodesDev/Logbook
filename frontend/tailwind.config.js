@@ -7,11 +7,12 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Headings  → Urbanist
+        // Headings → Urbanist
         heading: ['Urbanist', 'sans-serif'],
-        // Subheadings / body → DM Sans (closest freely available match to Product Sans)
-        subheading: ['"DM Sans"', 'sans-serif'],
-        sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+        // Subheadings / body → Product Sans
+        subheading: ['"Product Sans"', 'Urbanist', 'sans-serif'],
+        sans: ['"Product Sans"', 'Urbanist', 'sans-serif'],
+        mono: ['"Product Sans"', 'Urbanist', 'sans-serif'],
       },
     },
   },

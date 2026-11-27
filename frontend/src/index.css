@@ -17,9 +17,9 @@
 @layer base {
   /* ─── Global typography & Warm Sand canvas ──────── */
 
-  /* All body text / UI text → DM Sans */
+  /* All body text / UI text → Product Sans */
   body {
-    font-family: 'DM Sans', system-ui, sans-serif;
+    font-family: 'Product Sans', 'Urbanist', sans-serif;
     background-color: var(--bg-canvas);
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
@@ -35,9 +35,9 @@
     color: var(--text-primary);
   }
 
-  /* Subheadings (labels, captions, nav items) → DM Sans semibold */
-  p, label, caption, figcaption, legend, th {
-    font-family: 'DM Sans', system-ui, sans-serif;
+  /* Subheadings (labels, captions, nav items, inputs) → Product Sans */
+  p, label, caption, figcaption, legend, th, td, input, button, select, textarea {
+    font-family: 'Product Sans', 'Urbanist', sans-serif;
   }
 }
 
@@ -48,6 +48,38 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .liquid-glass-light {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border-bottom: 1px solid rgba(24, 24, 27, 0.08);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+      0 4px 20px -2px rgba(0, 0, 0, 0.04);
+  }
+
+  .liquid-glass-surface {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.78) 0%, rgba(252, 251, 248, 0.56) 100%);
+    backdrop-filter: blur(24px) saturate(165%);
+    -webkit-backdrop-filter: blur(24px) saturate(165%);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 0 rgba(24, 24, 27, 0.03),
+      0 10px 30px -8px rgba(24, 24, 27, 0.07),
+      0 1px 3px 0 rgba(24, 24, 27, 0.04);
+  }
+
+  .liquid-glass-dark {
+    background: rgba(24, 24, 27, 0.88);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+      0 12px 32px -8px rgba(0, 0, 0, 0.45);
   }
 }
 

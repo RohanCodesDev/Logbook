@@ -12,6 +12,8 @@ import fieldsRouter from './routes/fields.js';
 import recordsRouter from './routes/records.js';
 import dashboardRouter from './routes/dashboard.js';
 import reportsRouter from './routes/reports.js';
+import crewRouter from './routes/crew.js';
+import agreementsRouter from './routes/agreements.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { runMigrations } from './db/migrate.js';
 
@@ -64,8 +66,10 @@ app.use('/api/projects',  projectsRouter);
 app.use('/api/sections',  sectionsRouter);
 app.use('/api/fields',    fieldsRouter);
 app.use('/api/records',   recordsRouter);
-app.use('/api/dashboard', dashboardRouter);
-app.use('/api/reports',   reportsRouter);
+app.use('/api/dashboard',  dashboardRouter);
+app.use('/api/reports',    reportsRouter);
+app.use('/api/crew',       crewRouter);
+app.use('/api/agreements', agreementsRouter);
 
 // 404 & Error handling
 app.use(notFoundHandler);

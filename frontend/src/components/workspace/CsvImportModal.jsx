@@ -221,7 +221,7 @@ export default function CsvImportModal({
           value={rawText}
           onChange={(e) => setRawText(e.target.value)}
           placeholder={'Example:\nMachine,Hours,Rate\nExcavator,6,1800\nCrane,4,2500'}
-          className="w-full rounded-xl bg-[var(--bg-input)] border border-[var(--border-subtle)] px-3 py-2.5 text-xs font-mono text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E08A1E] focus:bg-[var(--bg-card)]"
+          className="w-full rounded-xl bg-[var(--bg-input)] border border-[var(--border-subtle)] px-3 py-2.5 text-xs text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E08A1E] focus:bg-[var(--bg-card)]"
         />
 
         {parsed.headers.length > 0 && (

@@ -14,7 +14,7 @@ export default function About() {
           <FolderTree className="w-5 h-5" />
           Workspace Directory Structure
         </div>
-        <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-sm overflow-x-auto leading-relaxed">
+        <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl font-sans text-sm overflow-x-auto leading-relaxed">
 {`Logbook/
 ├── frontend/
 │   ├── src/

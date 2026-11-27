@@ -73,7 +73,7 @@ export function ProjectCard({ project, onView, onEdit, onShare, onDelete, deleti
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-slate-500 pt-1">
         <span className="inline-flex items-center gap-1.5 truncate">
           <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-          <span className="truncate">{project.location || 'No location'}</span>
+          <span className="truncate capitalize">{project.location || 'No location'}</span>
         </span>
         <span className="inline-flex items-center gap-1.5 truncate">
           <User className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
@@ -116,7 +116,7 @@ export default function ProjectRow({
         }
       }}
       tabIndex={0}
-      className="group border-b border-[var(--border-subtle)] last:border-b-0 cursor-pointer hover:bg-[#FEF6E9]/60 focus:outline-none focus:bg-[#FEF6E9]/70 transition-colors duration-150"
+      className="group border-b border-[var(--border-subtle)] last:border-b-0 cursor-pointer hover:bg-zinc-950/[0.025] focus:outline-none focus:bg-zinc-950/[0.035] transition-colors duration-150"
     >
       {/* Project Name */}
       <td className="pl-6 pr-4 py-4">
@@ -129,7 +129,7 @@ export default function ProjectRow({
       <td className="px-4 py-4">
         <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
           <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-          <span className="truncate max-w-[180px]">{project.location || '—'}</span>
+          <span className="truncate max-w-[180px] capitalize">{project.location || '—'}</span>
         </span>
       </td>
 
@@ -147,23 +147,25 @@ export default function ProjectRow({
 
       {/* Sections & Records */}
       <td className="px-4 py-4 hidden xl:table-cell">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium tabular-nums">
-          <Layers className="w-3.5 h-3.5 text-slate-400" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-600 text-xs font-medium tabular-nums">
+          <Layers className="w-3.5 h-3.5 text-zinc-400" />
           {project.sectionCount ?? 0} sec · {project.recordCount ?? 0} rec
         </span>
       </td>
 
       {/* Last Updated */}
       <td className="px-4 py-4 hidden lg:table-cell">
-        <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 tabular-nums">
-          <Clock className="w-3.5 h-3.5 text-slate-400" />
+        <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 tabular-nums">
+          <Clock className="w-3.5 h-3.5 text-zinc-400" />
           {formatUpdatedDate(project.updatedAt, project.startDate)}
         </span>
       </td>
 
       {/* Kebab Actions Menu */}
       <td className="pl-4 pr-6 py-3 text-right">
-        <ActionMenu items={menuItems} label={`Actions for ${project.name}`} />
+        <div className="inline-flex opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+          <ActionMenu items={menuItems} label={`Actions for ${project.name}`} />
+        </div>
       </td>
     </tr>
   )

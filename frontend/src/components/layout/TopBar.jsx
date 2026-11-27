@@ -3,10 +3,12 @@ import { useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, ChevronRight, Menu, Pencil } from 'lucide-react'
 
 const routeLabels = {
-  '/':         'Dashboard',
-  '/projects': 'Your Projects',
-  '/reports':  'Reports',
-  '/settings': 'Settings',
+  '/':           'Dashboard',
+  '/projects':   'Your Projects',
+  '/crew':       'Workforce',
+  '/agreements': 'Agreements',
+  '/reports':    'Reports',
+  '/settings':   'Settings',
 }
 
 export default function TopBar({ actions = null, customTitle = null, onRenameTitle = null, onOpenMenu }) {
@@ -45,7 +47,7 @@ export default function TopBar({ actions = null, customTitle = null, onRenameTit
   }
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-3 h-14 sm:h-16 px-4 sm:px-6 lg:px-8 bg-[#FCFBF8]/95 backdrop-blur-md border-b border-[var(--border-subtle)]">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-3 h-14 sm:h-16 px-4 sm:px-6 lg:px-8 liquid-glass-light">
       {/* Left: Menu trigger on mobile + Minimal Breadcrumb */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
         {!isWorkspace && (

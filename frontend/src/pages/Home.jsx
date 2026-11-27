@@ -39,7 +39,7 @@ export default function Home() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900">React Frontend</h2>
           <p className="mt-2 text-slate-600 leading-relaxed">
-            Fast bundling with Vite, utility-first styling with Tailwind CSS, pre-configured with <code className="text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded font-mono text-sm">src/pages/</code> routing.
+            Fast bundling with Vite, utility-first styling with Tailwind CSS, pre-configured with <code className="text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded font-sans text-sm">src/pages/</code> routing.
           </p>
           <ul className="mt-4 space-y-2 text-sm text-slate-600">
             <li className="flex items-center gap-2">

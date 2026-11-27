@@ -4,6 +4,7 @@ import { FileBarChart2, Download, RefreshCw, ArrowRight, Loader2, AlertTriangle,
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import { Magnetic } from '../components/ui/Magnetic'
 import EmptyState from '../components/ui/EmptyState'
 import { useTopBar } from '../components/layout/AppLayout'
 import { getReports } from '../services/api'
@@ -53,15 +54,19 @@ export default function Reports() {
       title: 'Reports',
       actions: (
         <>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-          {projects.length > 0 && (
-            <Button variant="primary" size="sm" onClick={exportOverviewCsv}>
-              <Download className="w-3.5 h-3.5" />
-              Export CSV
+          <Magnetic strength={0.18}>
+            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
+          </Magnetic>
+          {projects.length > 0 && (
+            <Magnetic strength={0.18}>
+              <Button variant="primary" size="sm" onClick={exportOverviewCsv}>
+                <Download className="w-3.5 h-3.5" />
+                Export CSV
+              </Button>
+            </Magnetic>
           )}
         </>
       ),
@@ -111,7 +116,7 @@ export default function Reports() {
               </thead>
               <tbody>
                 {projects.map((p) => (
-                  <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
+                  <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-zinc-950/[0.025] transition-colors">
                     <td className="pl-6 pr-4 py-3.5">
                       <p className="text-sm font-semibold text-slate-900">{p.name}</p>
                       <p className="text-xs text-slate-400">{p.client || p.location || '—'}</p>
@@ -155,7 +160,7 @@ export default function Reports() {
               </thead>
               <tbody>
                 {sections.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
+                  <tr key={s.id} className="border-b border-slate-100 last:border-0 hover:bg-zinc-950/[0.025] transition-colors">
                     <td className="pl-6 pr-4 py-3.5 text-sm font-semibold text-slate-900">{s.sectionName}</td>
                     <td className="px-4 py-3.5 text-sm text-slate-600">
                       <Link to={`/projects/${s.projectId}`} className="hover:text-amber-600 transition-colors">

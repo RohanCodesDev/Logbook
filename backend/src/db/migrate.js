@@ -89,8 +89,49 @@ export async function runMigrations() {
       ADD COLUMN IF NOT EXISTS entry_date DATE;
     `);
 
-    // 6. Attach updated_at triggers safely
-    const triggerTables = ['projects', 'project_sections', 'section_records'];
+    // 6. Drivers, Operators & Helpers directory table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS crew_members (
+        id              SERIAL PRIMARY KEY,
+        name            VARCHAR(255) NOT NULL,
+        role            VARCHAR(50)  NOT NULL DEFAULT 'driver',
+        phone           VARCHAR(50),
+        vehicle_machine VARCHAR(255),
+        project_id      INTEGER      REFERENCES projects(id) ON DELETE SET NULL,
+        wage_rate       NUMERIC(12, 2),
+        wage_basis      VARCHAR(30)  NOT NULL DEFAULT 'daily',
+        license_no      VARCHAR(100),
+        joining_date    DATE,
+        status          VARCHAR(40)  NOT NULL DEFAULT 'active',
+        notes           TEXT,
+        created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // 7. Agreements & Contracts table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS agreements (
+        id              SERIAL PRIMARY KEY,
+        title           VARCHAR(255) NOT NULL,
+        agreement_type  VARCHAR(80)  NOT NULL DEFAULT 'subcontract',
+        party_name      VARCHAR(255) NOT NULL,
+        party_phone     VARCHAR(50),
+        project_id      INTEGER      REFERENCES projects(id) ON DELETE SET NULL,
+        start_date      DATE,
+        end_date        DATE,
+        contract_value  NUMERIC(14, 2),
+        payment_terms   VARCHAR(120),
+        reference_no    VARCHAR(100),
+        status          VARCHAR(40)  NOT NULL DEFAULT 'active',
+        notes           TEXT,
+        created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // 8. Attach updated_at triggers safely
+    const triggerTables = ['projects', 'project_sections', 'section_records', 'crew_members', 'agreements'];
     for (const table of triggerTables) {
       const triggerName = `${table}_updated_at`;
       await client.query(`

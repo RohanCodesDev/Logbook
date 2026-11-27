@@ -4,17 +4,21 @@ import {
   HardHat,
   LayoutDashboard,
   FolderOpen,
+  Users,
+  ScrollText,
   FileBarChart2,
   Settings,
-  ChevronRight,
   X,
 } from 'lucide-react'
+import { Magnetic } from '../ui/Magnetic'
 
 const navItems = [
-  { to: '/',         label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/projects', label: 'Projects',  icon: FolderOpen,      matchPrefix: '/projects' },
-  { to: '/reports',  label: 'Reports',   icon: FileBarChart2 },
-  { to: '/settings', label: 'Settings',  icon: Settings },
+  { to: '/',           label: 'Dashboard',  icon: LayoutDashboard, end: true },
+  { to: '/projects',   label: 'Projects',   icon: FolderOpen,      matchPrefix: '/projects' },
+  { to: '/crew',       label: 'Workforce',  icon: Users },
+  { to: '/agreements', label: 'Agreements', icon: ScrollText },
+  { to: '/reports',    label: 'Reports',    icon: FileBarChart2 },
+  { to: '/settings',   label: 'Settings',   icon: Settings },
 ]
 
 export function getBusinessProfile() {
@@ -26,7 +30,7 @@ export function getBusinessProfile() {
   }
   return {
     businessName: 'BuildLogic',
-    subtitle: 'Personal Construction Log',
+    subtitle: 'Construction OS',
     ownerName: 'Business Owner',
   }
 }
@@ -57,97 +61,105 @@ export default function Sidebar({ open = false, onClose }) {
       {/* Mobile backdrop */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col bg-[#1E242B] text-white border-r border-[#2C333C] transform transition-transform duration-200 ease-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col justify-between bg-[#09090B] text-zinc-400 border-r border-white/[0.08] select-none transform transition-transform duration-200 ease-out lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Brand */}
-        <div className="flex items-center justify-between gap-2 px-5 py-5 border-b border-[#2C333C]">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-[var(--accent-primary)] shadow-lg shadow-amber-700/20 flex-shrink-0">
-              <HardHat className="w-5 h-5 text-white" />
-            </span>
-            <div className="leading-tight min-w-0">
-              <p className="font-heading font-bold text-sm text-white tracking-tight truncate">
-                {profile.businessName || 'BuildLogic'}
-              </p>
-              <p className="text-[11px] text-slate-400 truncate">
-                {profile.subtitle || 'Construction Records'}
-              </p>
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Brand */}
+          <div className="flex items-center justify-between gap-2 px-5 py-5 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex-shrink-0">
+                <HardHat className="w-4 h-4" />
+              </span>
+              <div className="leading-tight min-w-0">
+                <p className="font-heading font-semibold text-sm text-zinc-100 tracking-tight truncate">
+                  {profile.businessName || 'BuildLogic'}
+                </p>
+                <p className="text-[11px] text-zinc-500 truncate">
+                  {profile.subtitle || 'Construction OS'}
+                </p>
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-100 hover:bg-white/[0.06] lg:hidden"
+              aria-label="Close navigation menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden"
-            aria-label="Close navigation menu"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {/* Navigation */}
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+            <p className="px-3 pt-1 pb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+              Menu
+            </p>
+            {navItems.map(({ to, label, icon: Icon, end, matchPrefix }) => {
+              const isMatchedPrefix = matchPrefix && location.pathname.startsWith(matchPrefix)
+              return (
+                <Magnetic key={to} strength={0.18} className="block w-full">
+                  <NavLink
+                    to={to}
+                    end={end}
+                    className={({ isActive }) => {
+                      const active = isActive || isMatchedPrefix
+                      return `group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        active
+                          ? 'text-zinc-100 bg-white/[0.06] border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]'
+                          : 'text-zinc-400 border border-transparent hover:bg-white/[0.03] hover:text-zinc-100'
+                      }`
+                    }}
+                  >
+                    {({ isActive }) => {
+                      const active = isActive || isMatchedPrefix
+                      return (
+                        <>
+                          {active && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-full bg-amber-500"
+                            />
+                          )}
+                          <Icon
+                            className={`w-4 h-4 flex-shrink-0 transition-colors ${
+                              active ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-200'
+                            }`}
+                          />
+                          <span className="flex-1 whitespace-nowrap">{label}</span>
+                        </>
+                      )
+                    }}
+                  </NavLink>
+                </Magnetic>
+              )
+            })}
+          </nav>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-            Menu
-          </p>
-          {navItems.map(({ to, label, icon: Icon, end, matchPrefix }) => {
-            const isMatchedPrefix = matchPrefix && location.pathname.startsWith(matchPrefix)
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className={({ isActive }) => {
-                  const active = isActive || isMatchedPrefix
-                  return `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                    active
-                      ? 'bg-amber-500/15 text-amber-400'
-                      : 'text-slate-400 hover:bg-slate-800/80 hover:text-white'
-                  }`
-                }}
-              >
-                {({ isActive }) => {
-                  const active = isActive || isMatchedPrefix
-                  return (
-                    <>
-                      <Icon
-                        className={`w-4 h-4 flex-shrink-0 ${
-                          active ? 'text-amber-400' : 'text-slate-500 group-hover:text-white'
-                        }`}
-                      />
-                      <span className="flex-1">{label}</span>
-                      {active && <ChevronRight className="w-3.5 h-3.5 text-amber-400" />}
-                    </>
-                  )
-                }}
-              </NavLink>
-            )
-          })}
-        </nav>
-
         {/* Bottom personal account card */}
-        <div className="px-3 pb-4 pt-3 border-t border-slate-800">
+        <div className="p-3 border-t border-white/[0.06]">
           <NavLink
             to="/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.04] transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-xs flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-semibold text-xs flex-shrink-0">
               {initials}
             </div>
             <div className="leading-tight flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">
+              <p className="text-sm font-medium text-zinc-100 truncate">
                 {profile.ownerName || 'Business Owner'}
               </p>
-              <p className="text-[11px] text-slate-400 truncate">Personal Business</p>
+              <p className="text-[11px] text-zinc-500 truncate">Personal Business</p>
             </div>
           </NavLink>
         </div>

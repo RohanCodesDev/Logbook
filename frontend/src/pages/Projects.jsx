@@ -6,6 +6,7 @@ import ProjectFormModal from '../components/project/ProjectFormModal'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import { Magnetic } from '../components/ui/Magnetic'
 import { useToast } from '../components/ui/Toast'
 import { useTopBar } from '../components/layout/AppLayout'
 import { getProjects, createProject, updateProject, deleteProject } from '../services/api'
@@ -55,14 +56,18 @@ export default function Projects() {
       title: 'Your Projects',
       actions: (
         <>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-          <Button variant="primary" size="sm" onClick={openCreateModal}>
-            <Plus className="w-4 h-4" />
-            New Project
-          </Button>
+          <Magnetic strength={0.18}>
+            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+          </Magnetic>
+          <Magnetic strength={0.18}>
+            <Button variant="primary" size="sm" onClick={openCreateModal}>
+              <Plus className="w-4 h-4" />
+              New Project
+            </Button>
+          </Magnetic>
         </>
       ),
     })
@@ -129,72 +134,82 @@ export default function Projects() {
     showToast(`Copied link for "${project.name}"`, 'info')
   }
 
-  // Clickable KPI filter cards — single source of truth for status filtering
+  // Clickable unified KPI instrument strip — monochrome zeros, color reserved for active/non-zero states
   const kpiFilters = [
     {
       value: 'all',
       label: 'All Projects',
       count: projects.length,
-      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#D6CFC2]',
-      active: 'bg-[#1E242B] text-white border-[#1E242B] shadow-sm',
-      dot: 'bg-slate-400',
+      nonZeroAccent: 'text-zinc-900',
     },
     {
       value: 'active',
       label: 'Active',
       count: projects.filter((p) => p.status === 'active').length,
-      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#BBF7D0]',
-      active: 'bg-[#DCFCE7] text-[#166534] border-[#16A34A] ring-1 ring-[#16A34A]',
-      dot: 'bg-[#16A34A]',
+      nonZeroAccent: 'text-emerald-600',
     },
     {
       value: 'planning',
       label: 'Planning',
       count: projects.filter((p) => p.status === 'planning').length,
-      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#DDD6FE]',
-      active: 'bg-[#EDE9FE] text-[#5B21B6] border-[#7C3AED] ring-1 ring-[#7C3AED]',
-      dot: 'bg-[#7C3AED]',
+      nonZeroAccent: 'text-amber-600',
     },
     {
       value: 'paused',
       label: 'Paused',
       count: projects.filter((p) => p.status === 'paused').length,
-      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#FDE68A]',
-      active: 'bg-[#FEF3C7] text-[#92400E] border-[#D97706] ring-1 ring-[#D97706]',
-      dot: 'bg-[#D97706]',
+      nonZeroAccent: 'text-amber-600',
     },
     {
       value: 'completed',
       label: 'Completed',
       count: projects.filter((p) => p.status === 'completed').length,
-      idle: 'bg-[var(--bg-card)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[#BFDBFE]',
-      active: 'bg-[#DBEAFE] text-[#1E40AF] border-[#2563EB] ring-1 ring-[#2563EB]',
-      dot: 'bg-[#2563EB]',
+      nonZeroAccent: 'text-zinc-900',
     },
   ]
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Clickable KPI Filter Cards */}
-      <div className="flex overflow-x-auto no-scrollbar gap-3 pb-1 sm:pb-0 sm:grid sm:grid-cols-3 lg:grid-cols-5 sm:gap-3.5">
+      {/* Unified KPI Instrument Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 rounded-2xl border border-zinc-200/80 bg-[var(--bg-card)] divide-y sm:divide-y-0 sm:divide-x divide-zinc-200/80 overflow-hidden shadow-xs">
         {kpiFilters.map((k) => {
           const isSelected = statusFilter === k.value
+          const isZero = !loading && k.count === 0
           return (
             <button
               key={k.value}
               type="button"
               onClick={() => setStatusFilter(k.value)}
-              className={`flex-shrink-0 min-w-[132px] sm:min-w-0 text-left rounded-2xl px-4 sm:px-5 py-3.5 sm:py-4 border transition-all duration-150 ${
-                isSelected ? k.active : k.idle
+              className={`relative text-left px-5 py-4 transition-all duration-150 ${
+                isSelected
+                  ? 'liquid-glass-dark text-zinc-100 border-0'
+                  : 'hover:bg-zinc-950/[0.025] text-zinc-700'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider opacity-70">
-                  {k.label}
-                </span>
-                <span className={`w-2 h-2 rounded-full ${k.dot}`} />
-              </div>
-              <p className="text-2xl font-bold tabular-nums mt-2">
+              {isSelected && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-5 top-0 h-[2px] rounded-b-full bg-amber-500"
+                />
+              )}
+              <span
+                className={`block text-[11px] font-semibold uppercase tracking-wider ${
+                  isSelected ? 'text-zinc-400' : 'text-zinc-500'
+                }`}
+              >
+                {k.label}
+              </span>
+              <p
+                className={`text-2xl font-bold tabular-nums mt-1.5 ${
+                  isSelected
+                    ? isZero
+                      ? 'text-zinc-500'
+                      : 'text-zinc-100'
+                    : isZero
+                      ? 'text-zinc-400'
+                      : k.nonZeroAccent
+                }`}
+              >
                 {loading ? '—' : k.count}
               </p>
             </button>
@@ -231,7 +246,7 @@ export default function Projects() {
           </div>
 
           {!loading && (
-            <p className="text-xs text-slate-400 tabular-nums hidden sm:block">
+            <p className="text-xs text-zinc-500 tabular-nums hidden sm:block">
               Showing {filtered.length} of {projects.length}
             </p>
           )}

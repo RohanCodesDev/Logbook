@@ -1,5 +1,6 @@
 const variants = {
   primary: 'bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-hover)] shadow-sm shadow-amber-700/15 active:scale-95',
+  obsidian: 'bg-[#18181B] text-white hover:bg-zinc-800 active:scale-95',
   secondary: 'bg-[var(--bg-input)] text-[var(--text-primary)] hover:bg-[#E6E1D6] active:scale-95',
   danger: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 active:scale-95',
   ghost: 'text-slate-600 hover:bg-[var(--bg-input)] active:scale-95',

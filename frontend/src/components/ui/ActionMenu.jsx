@@ -23,10 +23,10 @@ export default function ActionMenu({ items = [], label = 'More actions' }) {
           e.stopPropagation()
           setOpen((prev) => !prev)
         }}
-        className={`p-2 rounded-lg transition-colors ${
+        className={`p-2.5 sm:p-2 rounded-lg transition-colors ${
           open
             ? 'bg-[var(--bg-input)] text-[var(--text-primary)]'
-            : 'text-slate-400 hover:text-[var(--text-primary)] hover:bg-[var(--bg-input)]'
+            : 'text-slate-500 sm:text-slate-400 hover:text-[var(--text-primary)] hover:bg-[var(--bg-input)]'
         }`}
       >
         <MoreVertical className="w-4 h-4" />
