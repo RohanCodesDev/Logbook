@@ -49,3 +49,47 @@
     scrollbar-width: none;
   }
 }
+
+/* ─── Clean PDF / Print Export Rules ───────────────────────────── */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: auto;
+    margin: 12mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  aside,
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  main,
+  .lg\:pl-64 {
+    padding-left: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 11px !important;
+  }
+
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+}

@@ -28,17 +28,22 @@ export function ToastProvider({ children }) {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
-  const showToast = useCallback((message, type = 'success') => {
+  const showToast = useCallback((message, typeOrOptions = 'success', maybeOptions = {}) => {
+    const opts = typeof typeOrOptions === 'string'
+      ? { type: typeOrOptions, ...maybeOptions }
+      : { type: 'success', ...(typeOrOptions || {}) }
+
+    const { type = 'success', duration = 3500, actionLabel = null, onAction = null } = opts
     const id = `${Date.now()}-${Math.random()}`
-    setToasts((prev) => [...prev, { id, message, type }])
-    setTimeout(() => dismiss(id), 3500)
+    setToasts((prev) => [...prev, { id, message, type, actionLabel, onAction }])
+    setTimeout(() => dismiss(id), duration)
   }, [dismiss])
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {/* Toast stack */}
-      <div className="fixed bottom-20 lg:bottom-5 left-4 right-4 sm:left-auto sm:right-5 z-[100] flex flex-col gap-2 sm:max-w-sm sm:w-full pointer-events-none">
+      <div className="no-print fixed bottom-20 lg:bottom-5 left-4 right-4 sm:left-auto sm:right-5 z-[100] flex flex-col gap-2 sm:max-w-sm sm:w-full pointer-events-none">
         {toasts.map((t) => {
           const Icon = ICONS[t.type] || Info
           return (
@@ -48,6 +53,18 @@ export function ToastProvider({ children }) {
             >
               <Icon className={`w-4 h-4 flex-shrink-0 ${ICON_COLORS[t.type] || ICON_COLORS.info}`} />
               <span className="flex-1">{t.message}</span>
+              {t.actionLabel && t.onAction && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    t.onAction()
+                    dismiss(t.id)
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[#F5BD6E] text-xs font-bold uppercase tracking-wider transition-colors flex-shrink-0"
+                >
+                  {t.actionLabel}
+                </button>
+              )}
               <button
                 onClick={() => dismiss(t.id)}
                 className="text-slate-400 hover:text-white transition-colors"

@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  HardHat, AlertTriangle, Layers, FileSpreadsheet,
+  HardHat, AlertTriangle, FileSpreadsheet,
   Clock, Sun, Sunrise, Moon, FolderOpen,
   RefreshCw, MapPin, ArrowRight, CalendarDays,
-  BarChart3, Plus
+  BarChart3, Plus, IndianRupee, TrendingUp
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
@@ -19,19 +19,29 @@ function getGreeting() {
   return { text: 'Good Evening', Icon: Moon }
 }
 
-function StatCard({ label, value, icon: Icon, iconColor, bgColor, loading }) {
+function formatInr(val) {
+  const num = Number(val || 0)
+  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+}
+
+function StatCard({ label, value, sub, icon: Icon, iconColor, bgColor, loading }) {
   return (
-    <Card className="flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${bgColor}`}>
-        <Icon className={`w-6 h-6 ${iconColor}`} />
+    <Card className="flex items-center gap-3.5">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${bgColor}`}>
+        <Icon className={`w-5 h-5 ${iconColor}`} />
       </div>
-      <div>
+      <div className="min-w-0">
         {loading ? (
-          <div className="h-7 w-10 rounded-md bg-slate-200 animate-pulse mb-1" />
+          <div className="h-7 w-16 rounded-md bg-slate-200 animate-pulse mb-1" />
         ) : (
-          <p className="text-3xl font-bold text-slate-900 leading-none tabular-nums">{value}</p>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 leading-none tabular-nums truncate">
+            {value}
+          </p>
         )}
-        <p className="text-xs text-slate-500 mt-1 font-medium">{label}</p>
+        <p className="text-xs text-slate-500 mt-1 font-medium truncate">{label}</p>
+        {sub && !loading && (
+          <p className="text-[11px] text-slate-400 mt-0.5 tabular-nums truncate">{sub}</p>
+        )}
       </div>
     </Card>
   )
@@ -53,10 +63,15 @@ function RecentRow({ project }) {
             <span className="truncate">{project.location || 'No location set'}</span>
           </span>
           <span>·</span>
-          <span className="tabular-nums">{project.sectionCount ?? 0} sec · {project.recordCount ?? 0} rec</span>
+          <span className="tabular-nums">{project.sectionCount ?? 0} sheets · {project.recordCount ?? 0} rows</span>
         </span>
       </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex items-center gap-2.5 flex-shrink-0">
+        {project.totalSpend > 0 && (
+          <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] tabular-nums">
+            {formatInr(project.totalSpend)}
+          </span>
+        )}
         <Badge status={project.status} />
         <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
       </div>
@@ -112,10 +127,38 @@ export default function Dashboard() {
   const recent = data?.recentProjects ?? []
 
   const statCards = [
-    { label: 'Total Projects',   value: s.total         ?? 0, icon: FolderOpen,      iconColor: 'text-amber-600',   bgColor: 'bg-amber-100' },
-    { label: 'Active Sites',     value: s.active        ?? 0, icon: HardHat,         iconColor: 'text-emerald-600', bgColor: 'bg-emerald-100' },
-    { label: 'Custom Sections',  value: s.totalSections ?? 0, icon: Layers,          iconColor: 'text-indigo-600',  bgColor: 'bg-indigo-100' },
-    { label: 'Logged Records',   value: s.totalRecords  ?? 0, icon: FileSpreadsheet, iconColor: 'text-blue-600',    bgColor: 'bg-blue-100' },
+    {
+      label: "Today's Spend",
+      value: formatInr(s.todaySpend),
+      sub: `${formatInr(s.monthSpend)} last 30d`,
+      icon: IndianRupee,
+      iconColor: 'text-amber-600',
+      bgColor: 'bg-amber-100',
+    },
+    {
+      label: 'Total Logged Spend',
+      value: formatInr(s.totalSpend),
+      sub: `Across ${s.total ?? 0} projects`,
+      icon: TrendingUp,
+      iconColor: 'text-emerald-600',
+      bgColor: 'bg-emerald-100',
+    },
+    {
+      label: 'Active Sites',
+      value: s.active ?? 0,
+      sub: `${s.total ?? 0} total projects`,
+      icon: HardHat,
+      iconColor: 'text-indigo-600',
+      bgColor: 'bg-indigo-100',
+    },
+    {
+      label: 'Logged Entries',
+      value: s.totalRecords ?? 0,
+      sub: `${s.totalSections ?? 0} sheets`,
+      icon: FileSpreadsheet,
+      iconColor: 'text-blue-600',
+      bgColor: 'bg-blue-100',
+    },
   ]
 
   return (

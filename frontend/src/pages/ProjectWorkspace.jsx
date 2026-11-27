@@ -54,7 +54,6 @@ export default function ProjectWorkspace() {
   const [recordModalOpen, setRecordModalOpen]       = useState(false)
   const [editingRecord, setEditingRecord]           = useState(null)
   const [defaultEntryDate, setDefaultEntryDate]     = useState(null)
-  const [deleteRecordTarget, setDeleteRecordTarget] = useState(null)
   const [deletingRecordId, setDeletingRecordId]     = useState(null)
 
   const activeSection = sections.find((s) => s.id === activeId) || null
@@ -300,24 +299,175 @@ export default function ProjectWorkspace() {
     }
   }
 
-  const handleConfirmDeleteRecord = async () => {
-    if (!deleteRecordTarget) return
-    setDeletingRecordId(deleteRecordTarget.id)
+  const handleDeleteRecordWithUndo = async (rec) => {
+    if (!rec || !activeSection) return
+    const sectionId = activeSection.id
+    const snapshotData = rec.data || {}
+    const snapshotDate = rec.entryDate || null
+
+    setDeletingRecordId(rec.id)
     try {
-      await deleteRecord(deleteRecordTarget.id)
-      setRecords((prev) => prev.filter((r) => r.id !== deleteRecordTarget.id))
+      await deleteRecord(rec.id)
+      setRecords((prev) => prev.filter((r) => r.id !== rec.id))
       setSections((prev) =>
         prev.map((s) =>
-          s.id === activeSection?.id ? { ...s, recordCount: Math.max(0, (s.recordCount || 1) - 1) } : s
+          s.id === sectionId ? { ...s, recordCount: Math.max(0, (s.recordCount || 1) - 1) } : s
         )
       )
-      showToast('Record deleted')
-      setDeleteRecordTarget(null)
+      showToast('Row deleted', {
+        type: 'info',
+        duration: 5500,
+        actionLabel: 'Undo',
+        onAction: async () => {
+          try {
+            const restored = await createRecord(sectionId, snapshotData, snapshotDate)
+            setRecords((prev) => [...prev, restored.data])
+            setSections((prev) =>
+              prev.map((s) =>
+                s.id === sectionId ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
+              )
+            )
+            showToast('Row restored')
+          } catch (restoreErr) {
+            showToast(restoreErr.message, 'error')
+          }
+        },
+      })
     } catch (err) {
       showToast(err.message, 'error')
     } finally {
       setDeletingRecordId(null)
     }
+  }
+
+  const handleBulkDeleteRecords = async (recordsToDelete) => {
+    if (!recordsToDelete?.length || !activeSection) return
+    const sectionId = activeSection.id
+    const snapshots = recordsToDelete.map((r) => ({
+      id: r.id,
+      data: r.data || {},
+      entryDate: r.entryDate || null,
+    }))
+
+    try {
+      await Promise.all(snapshots.map((s) => deleteRecord(s.id)))
+      const deletedSet = new Set(snapshots.map((s) => s.id))
+      setRecords((prev) => prev.filter((r) => !deletedSet.has(r.id)))
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === sectionId
+            ? { ...s, recordCount: Math.max(0, (s.recordCount || snapshots.length) - snapshots.length) }
+            : s
+        )
+      )
+      showToast(`Deleted ${snapshots.length} ${snapshots.length === 1 ? 'row' : 'rows'}`, {
+        type: 'info',
+        duration: 6000,
+        actionLabel: 'Undo',
+        onAction: async () => {
+          try {
+            const restored = await Promise.all(
+              snapshots.map((s) => createRecord(sectionId, s.data, s.entryDate))
+            )
+            setRecords((prev) => [...prev, ...restored.map((r) => r.data)])
+            setSections((prev) =>
+              prev.map((s) =>
+                s.id === sectionId ? { ...s, recordCount: (s.recordCount || 0) + snapshots.length } : s
+              )
+            )
+            showToast(`Restored ${snapshots.length} rows`)
+          } catch (restoreErr) {
+            showToast(restoreErr.message, 'error')
+          }
+        },
+      })
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const handleBulkUpdateEntryDate = async (recordsToUpdate, nextEntryDate) => {
+    if (!recordsToUpdate?.length || !nextEntryDate) return
+    try {
+      const updated = await Promise.all(
+        recordsToUpdate.map((r) => updateRecord(r.id, r.data || {}, nextEntryDate))
+      )
+      const byId = new Map(updated.map((res) => [res.data.id, res.data]))
+      setRecords((prev) => prev.map((r) => byId.get(r.id) || r))
+      showToast(`Moved ${recordsToUpdate.length} ${recordsToUpdate.length === 1 ? 'row' : 'rows'} to ${nextEntryDate}`)
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const handleImportCsv = async ({ rows, mappings, columnsToCreate, defaultDate, normalizeDateCandidate }) => {
+    if (!activeSection) return
+    const sectionId = activeSection.id
+    const currentFields = [...(activeSection.fields || [])]
+    const createdColIdByIdx = {}
+
+    for (const col of columnsToCreate) {
+      const res = await createField(sectionId, {
+        name: col.name,
+        fieldType: col.fieldType,
+        options: [],
+        formula: null,
+        isRequired: false,
+      })
+      createdColIdByIdx[col.colIdx] = res.data.id
+      currentFields.push(res.data)
+    }
+
+    if (columnsToCreate.length > 0) {
+      setSections((prev) =>
+        prev.map((s) => (s.id === sectionId ? { ...s, fields: currentFields } : s))
+      )
+    }
+
+    const fieldById = new Map(currentFields.map((f) => [String(f.id), f]))
+    const payloads = rows.map((row) => {
+      const data = {}
+      let entryDate = defaultDate
+
+      Object.entries(mappings).forEach(([idxStr, target]) => {
+        const idx = Number(idxStr)
+        const rawCell = row[idx] ?? ''
+        if (target === '__skip' || rawCell === '') return
+        if (target === '__entryDate') {
+          const norm = normalizeDateCandidate(rawCell)
+          if (norm) entryDate = norm
+          return
+        }
+        const fieldId = target === '__create' ? String(createdColIdByIdx[idx]) : String(target)
+        const f = fieldById.get(fieldId)
+        if (!f) return
+        if (f.fieldType === 'number' || f.fieldType === 'currency') {
+          const cleaned = String(rawCell).replace(/[₹,\s]/g, '')
+          const n = Number(cleaned)
+          data[fieldId] = Number.isNaN(n) ? rawCell : n
+        } else if (f.fieldType === 'date') {
+          data[fieldId] = normalizeDateCandidate(rawCell) || rawCell
+        } else if (f.fieldType === 'checkbox') {
+          data[fieldId] = /^(true|yes|1|y)$/i.test(String(rawCell).trim())
+        } else {
+          data[fieldId] = rawCell
+        }
+      })
+
+      return { data, entryDate }
+    })
+
+    const createdRecords = await Promise.all(
+      payloads.map((p) => createRecord(sectionId, p.data, p.entryDate))
+    )
+    const inserted = createdRecords.map((r) => r.data)
+    setRecords((prev) => [...prev, ...inserted])
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === sectionId ? { ...s, recordCount: (s.recordCount || 0) + inserted.length } : s
+      )
+    )
+    showToast(`Imported ${inserted.length} ${inserted.length === 1 ? 'row' : 'rows'}`)
   }
 
   if (loadingPage) {
@@ -367,12 +517,14 @@ export default function ProjectWorkspace() {
         </Card>
       ) : (
         <div className="space-y-4">
-          <SectionTabs
-            sections={sections}
-            activeSectionId={activeId}
-            onSelect={(secId) => setActiveId(secId)}
-            onAddSection={() => { setEditingSection(null); setSectionModalOpen(true) }}
-          />
+          <div className="no-print">
+            <SectionTabs
+              sections={sections}
+              activeSectionId={activeId}
+              onSelect={(secId) => setActiveId(secId)}
+              onAddSection={() => { setEditingSection(null); setSectionModalOpen(true) }}
+            />
+          </div>
 
           {activeSection && (
             <Card noPad>
@@ -382,6 +534,7 @@ export default function ProjectWorkspace() {
                 </div>
               )}
               <RecordRegisterTable
+                projectName={project?.name || ''}
                 section={activeSection}
                 records={records}
                 loading={loadingRecords}
@@ -398,7 +551,10 @@ export default function ProjectWorkspace() {
                 onDuplicateRecord={handleDuplicateRecord}
                 onQuickCreateRecord={handleQuickCreateRecord}
                 onInlineUpdateRecord={handleInlineUpdateRecord}
-                onDeleteRecord={(rec) => setDeleteRecordTarget(rec)}
+                onDeleteRecord={handleDeleteRecordWithUndo}
+                onBulkDeleteRecords={handleBulkDeleteRecords}
+                onBulkUpdateEntryDate={handleBulkUpdateEntryDate}
+                onImportCsv={handleImportCsv}
                 onAddColumn={handleAddField}
                 onDeleteField={handleDeleteField}
                 onReorderFields={handleReorderFields}
@@ -428,6 +584,7 @@ export default function ProjectWorkspace() {
         onClose={() => setSectionModalOpen(false)}
         onSubmit={handleSaveSection}
         initialData={editingSection}
+        sections={sections}
       />
 
       <CustomFieldBuilderModal
@@ -457,7 +614,7 @@ export default function ProjectWorkspace() {
         onDuplicate={(data, entryDate) => handleDuplicateRecord(data, entryDate)}
         onDelete={(rec) => {
           setRecordModalOpen(false)
-          setDeleteRecordTarget(rec)
+          handleDeleteRecordWithUndo(rec)
         }}
       />
 
@@ -468,15 +625,6 @@ export default function ProjectWorkspace() {
         title="Delete Section"
         message={`Delete "${deleteSectionTarget?.name}" and all ${deleteSectionTarget?.recordCount || 0} logged records inside it?`}
         loading={deletingSection}
-      />
-
-      <ConfirmModal
-        open={Boolean(deleteRecordTarget)}
-        onClose={() => setDeleteRecordTarget(null)}
-        onConfirm={handleConfirmDeleteRecord}
-        title="Delete Record"
-        message="Are you sure you want to remove this record from the register?"
-        loading={Boolean(deletingRecordId)}
       />
     </div>
   )

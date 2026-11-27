@@ -85,11 +85,17 @@ export const createSection = async (req, res, next) => {
     );
     const section = secRows[0];
 
-    // Insert initial custom fields if provided (e.g., from a template)
+    // Insert initial custom fields if provided (e.g., from a template or duplicate sheet)
     const createdFields = [];
+    const createdIdsByIndex = {};
+    const validFieldInputs = [];
+
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i];
       if (!f.name || !f.name.trim()) continue;
+      const sortIdx = validFieldInputs.length;
+      validFieldInputs.push({ raw: f, origIndex: i, sortIdx });
+
       const { rows: fRows } = await client.query(
         `INSERT INTO section_fields (section_id, name, field_type, options, is_required, sort_order)
          VALUES ($1, $2, $3, $4::jsonb, $5, $6)
@@ -99,11 +105,36 @@ export const createSection = async (req, res, next) => {
           f.name.trim(),
           f.fieldType || 'text',
           JSON.stringify(Array.isArray(f.options) ? f.options : []),
-          Boolean(f.isRequired),
-          i,
+          f.fieldType === 'formula' ? false : Boolean(f.isRequired),
+          sortIdx,
         ]
       );
+      createdIdsByIndex[i] = fRows[0].id;
       createdFields.push(toField(fRows[0]));
+    }
+
+    // Second pass: resolve relative formula references between newly created fields
+    for (const item of validFieldInputs) {
+      const { raw, sortIdx } = item;
+      if (raw.fieldType === 'formula' && raw.formulaRef) {
+        const leftId = createdIdsByIndex[raw.formulaRef.leftIndex];
+        const rightId = createdIdsByIndex[raw.formulaRef.rightIndex];
+        if (leftId && rightId) {
+          const formulaObj = {
+            leftFieldId:  leftId,
+            operator:     raw.formulaRef.operator || 'mul',
+            rightFieldId: rightId,
+            format:       raw.formulaRef.format || 'currency',
+          };
+          const { rows: updRows } = await client.query(
+            `UPDATE section_fields SET formula = $1::jsonb WHERE id = $2 RETURNING *`,
+            [JSON.stringify(formulaObj), createdFields[sortIdx].id]
+          );
+          if (updRows.length) {
+            createdFields[sortIdx] = toField(updRows[0]);
+          }
+        }
+      }
     }
 
     await client.query('COMMIT');

@@ -4,7 +4,7 @@ import {
   CheckCircle2, Minus, Loader2, SlidersHorizontal,
   Table as TableIcon, LayoutList, IndianRupee, Hash, Calendar, Type, List, CheckSquare,
   Calculator, Sigma, ArrowUpDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
-  Filter, X, MoreVertical, FileSpreadsheet, Eye
+  Filter, X, MoreVertical, FileSpreadsheet, Eye, ChevronDown, ChevronRight, Upload, Printer
 } from 'lucide-react'
 import Button from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
@@ -14,6 +14,7 @@ import { Dock, DockIcon, DockItem, DockLabel } from '../ui/dock'
 import SortModal from './SortModal'
 import FilterModal from './FilterModal'
 import TotalsModal from './TotalsModal'
+import CsvImportModal from './CsvImportModal'
 import {
   CURRENCY_NAME_RE,
   evaluateFormulaValue,
@@ -153,12 +154,24 @@ function formatDisplayValue(field, value) {
 }
 
 /**
- * Fast inline cell editor / viewer for Excel Grid view
+ * Fast inline cell editor / viewer for Excel Grid view (with Tab / Shift+Tab navigation)
  */
-function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
-  const [isEditing, setIsEditing] = useState(false)
+function EditableCell({
+  field,
+  value,
+  onSave,
+  onEditFormulaColumn,
+  forceEdit = false,
+  onStartEdit,
+  onStopEdit,
+  onTabNavigate,
+}) {
+  const [localEditing, setLocalEditing] = useState(false)
   const [tempVal, setTempVal] = useState(value ?? '')
   const inputRef = useRef(null)
+  const tabbingRef = useRef(false)
+
+  const isEditing = forceEdit || localEditing
 
   useEffect(() => {
     setTempVal(value ?? '')
@@ -166,6 +179,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
+      tabbingRef.current = false
       inputRef.current.focus()
       if (inputRef.current.select) inputRef.current.select()
     }
@@ -183,8 +197,22 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
     )
   }
 
-  const commitChange = (nextVal) => {
-    setIsEditing(false)
+  const startEditing = () => {
+    setLocalEditing(true)
+    onStartEdit?.()
+  }
+
+  const stopEditing = () => {
+    setLocalEditing(false)
+    onStopEdit?.()
+  }
+
+  const commitChange = (nextVal, keepNavigating = false) => {
+    if (!keepNavigating) {
+      stopEditing()
+    } else {
+      setLocalEditing(false)
+    }
     const valToSave = nextVal !== undefined ? nextVal : tempVal
     if (valToSave !== value) {
       onSave(valToSave)
@@ -193,11 +221,26 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
+      e.preventDefault()
       commitChange()
     } else if (e.key === 'Escape') {
+      e.preventDefault()
       setTempVal(value ?? '')
-      setIsEditing(false)
+      stopEditing()
+    } else if (e.key === 'Tab' && onTabNavigate) {
+      e.preventDefault()
+      tabbingRef.current = true
+      commitChange(undefined, true)
+      onTabNavigate(e.shiftKey ? -1 : 1)
     }
+  }
+
+  const handleBlur = () => {
+    if (tabbingRef.current) {
+      tabbingRef.current = false
+      return
+    }
+    commitChange()
   }
 
   if (field.fieldType === 'checkbox') {
@@ -223,7 +266,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
             setTempVal(nextVal)
             commitChange(nextVal)
           }}
-          onCloseComplete={() => setIsEditing(false)}
+          onCloseComplete={stopEditing}
           options={[
             { value: '', label: '— Clear —' },
             ...(field.options || []).map((opt) => ({ value: opt, label: opt })),
@@ -244,7 +287,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
             inputMode="decimal"
             value={tempVal}
             onChange={(e) => setTempVal(e.target.value)}
-            onBlur={() => commitChange()}
+            onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder="0.00"
             className="w-full h-10 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-semibold border border-[#E08A1E] rounded focus:outline-none"
@@ -262,7 +305,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
           inputMode="decimal"
           value={tempVal}
           onChange={(e) => setTempVal(e.target.value)}
-          onBlur={() => commitChange()}
+          onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder="0"
           className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
@@ -280,7 +323,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
             setTempVal(e.target.value)
             commitChange(e.target.value)
           }}
-          onBlur={() => commitChange()}
+          onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
         />
@@ -293,7 +336,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
         type="text"
         value={tempVal}
         onChange={(e) => setTempVal(e.target.value)}
-        onBlur={() => commitChange()}
+        onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder="Type here..."
         className="w-full h-10 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
@@ -303,12 +346,12 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
 
   return (
     <div
-      onClick={() => setIsEditing(true)}
+      onClick={startEditing}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          setIsEditing(true)
+          startEditing()
         }
       }}
       className="w-full min-h-[42px] px-3 py-2 flex items-center cursor-pointer transition-colors select-none text-sm rounded hover:bg-[#FEF6E9]/70 text-[var(--text-primary)]"
@@ -576,7 +619,7 @@ function BlankColumnHeader({
   return (
     <th
       ref={headerRef}
-      className={`px-2 py-2 border-r border-dashed border-[var(--border-subtle)] whitespace-nowrap select-none transition-all ${
+      className={`no-print px-2 py-2 border-r border-dashed border-[var(--border-subtle)] whitespace-nowrap select-none transition-all ${
         isOpen ? 'min-w-[225px] bg-[#FEF6E9]/60' : 'min-w-[132px]'
       }`}
     >
@@ -819,23 +862,23 @@ function BlankEntryRow({
   return (
     <tr
       ref={rowRef}
-      className={`group/blank border-b border-[var(--border-subtle)]/75 last:border-b-0 transition-colors ${
+      className={`no-print group/blank border-b border-[var(--border-subtle)]/75 last:border-b-0 transition-colors ${
         isRowActive ? 'bg-[#FEF6E9]/45' : 'bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/40'
       }`}
     >
-      {showSerial && (
-        <td className="sticky left-0 z-10 px-3 py-1.5 text-center border-r border-[var(--border-subtle)] bg-[var(--bg-card)] group-hover/blank:bg-[#FEF6E9]">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => commitRow(draftRef.current, true)}
-            title="Click to add a new blank row"
-            className="w-6 h-6 rounded-md inline-flex items-center justify-center text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E08A1E]" /> : <Plus className="w-3.5 h-3.5" />}
-          </button>
-        </td>
-      )}
+      <td className="sticky left-0 z-10 px-2 py-1.5 text-center border-r border-[var(--border-subtle)] bg-[var(--bg-card)] group-hover/blank:bg-[#FEF6E9]">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => commitRow(draftRef.current, true)}
+          title="Click to add a new blank row"
+          className={`w-6 h-6 rounded-md inline-flex items-center justify-center text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-all disabled:opacity-50 ${
+            showSerial ? 'opacity-100' : 'opacity-40 group-hover/blank:opacity-100'
+          }`}
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E08A1E]" /> : <Plus className="w-3.5 h-3.5" />}
+        </button>
+      </td>
 
       {fields.map((f) => {
         const key = String(f.id)
@@ -1032,11 +1075,11 @@ function BlankEntryRow({
 }
 
 /**
- * Slim center-aligned Date Group Banner:
- * Center: "27 Nov 2026 · Fri" + TODAY pill (clearly distinct from cell values)
+ * Slim center-aligned Date Group Banner (collapsible):
+ * Center: clickable "27 Nov 2026 · Fri" + TODAY tag + collapse chevron
  * Right: bold day subtotal ("₹78,542") + subtle "+" icon
  */
-function DateGroupBanner({ group, onAddForDate }) {
+function DateGroupBanner({ group, isCollapsed = false, onToggleCollapse, onAddForDate }) {
   const { title, relativeTag, weekday, dateKey, stats } = group
   const primaryField = stats.summaryFields[0]
   const primarySummary = primaryField ? stats.byField[primaryField.id] : null
@@ -1046,9 +1089,19 @@ function DateGroupBanner({ group, onAddForDate }) {
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 sm:px-5 py-2 select-none">
       <div />
 
-      {/* Plain centered Date heading (no pill/box container) */}
-      <div className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
-        <span className="font-heading text-xs sm:text-sm font-bold text-[var(--text-primary)] tracking-tight">
+      {/* Plain centered clickable Date heading (no pill/box container) */}
+      <button
+        type="button"
+        onClick={() => onToggleCollapse?.(dateKey)}
+        title={isCollapsed ? `Expand ${title}` : `Collapse ${title}`}
+        className="group/date inline-flex items-center justify-center gap-1.5 whitespace-nowrap hover:text-[#C97814] transition-colors cursor-pointer"
+      >
+        {isCollapsed ? (
+          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover/date:text-[#C97814]" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 text-slate-300 opacity-0 group-hover/date:opacity-100 transition-opacity" />
+        )}
+        <span className="font-heading text-xs sm:text-sm font-bold text-[var(--text-primary)] group-hover/date:text-[#C97814] tracking-tight transition-colors">
           {title}{shortDay ? ` · ${shortDay}` : ''}
         </span>
         {relativeTag && (
@@ -1056,7 +1109,12 @@ function DateGroupBanner({ group, onAddForDate }) {
             · {relativeTag}
           </span>
         )}
-      </div>
+        {isCollapsed && (
+          <span className="text-[11px] font-medium text-slate-400 tabular-nums">
+            ({group.records.length})
+          </span>
+        )}
+      </button>
 
       {/* Right: Bold day total + subtle "+" icon */}
       <div className="flex items-center justify-end gap-2 min-w-0">
@@ -1071,7 +1129,7 @@ function DateGroupBanner({ group, onAddForDate }) {
           <button
             type="button"
             onClick={() => onAddForDate(dateKey)}
-            className="p-1 rounded-lg text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors flex-shrink-0"
+            className="no-print p-1 rounded-lg text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors flex-shrink-0"
             title={`Add entry for ${title}`}
             aria-label={`Add entry for ${title}`}
           >
@@ -1084,7 +1142,7 @@ function DateGroupBanner({ group, onAddForDate }) {
 }
 
 /**
- * Mobile Stacked Entry Card — shows visible columns cleanly without repeating the group date.
+ * Mobile Stacked Entry Card — tap amount to inline-edit, tap checkbox to toggle, tap card for full form.
  */
 function MobileEntryCard({
   record,
@@ -1093,7 +1151,12 @@ function MobileEntryCard({
   fields,
   displayLabels,
   onEdit,
+  onInlineUpdate,
 }) {
+  const [editingAmount, setEditingAmount] = useState(false)
+  const [amountDraft, setAmountDraft]     = useState('')
+  const amountInputRef = useRef(null)
+
   const headlineField =
     fields.find((f) => f.fieldType === 'text' && !CURRENCY_NAME_RE.test(f.name)) ||
     fields.find((f) => f.fieldType === 'select') ||
@@ -1110,6 +1173,29 @@ function MobileEntryCard({
 
   const headlineVal = getEffectiveCellValue(headlineField, record.data, fields)
   const hasHeadline = headlineVal !== undefined && headlineVal !== null && String(headlineVal).trim() !== ''
+  const amountVal = amountField ? getEffectiveCellValue(amountField, record.data, fields) : null
+  const canInlineEditAmount = Boolean(amountField && amountField.fieldType !== 'formula' && onInlineUpdate)
+
+  useEffect(() => {
+    if (editingAmount && amountInputRef.current) {
+      amountInputRef.current.focus()
+      amountInputRef.current.select()
+    }
+  }, [editingAmount])
+
+  const commitAmount = () => {
+    setEditingAmount(false)
+    if (!amountField || !onInlineUpdate) return
+    const nextRaw = amountDraft.trim()
+    const nextVal = nextRaw === '' ? '' : Number(nextRaw)
+    if (Number.isNaN(nextVal)) return
+    if (nextVal !== record.data?.[String(amountField.id)]) {
+      onInlineUpdate(record.id, {
+        ...(record.data || {}),
+        [String(amountField.id)]: nextVal,
+      })
+    }
+  }
 
   return (
     <div
@@ -1148,29 +1234,80 @@ function MobileEntryCard({
         </div>
 
         {amountField && (
-          <div className="text-right flex-shrink-0">
+          <div
+            className="text-right flex-shrink-0"
+            onClick={(e) => {
+              if (!canInlineEditAmount) return
+              e.stopPropagation()
+              setAmountDraft(amountVal ?? '')
+              setEditingAmount(true)
+            }}
+          >
             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
               {displayLabels[amountField.id]}
             </p>
-            <div className="text-sm font-bold text-[var(--text-primary)]">
-              {formatDisplayValue(amountField, getEffectiveCellValue(amountField, record.data, fields))}
-            </div>
+            {editingAmount ? (
+              <input
+                ref={amountInputRef}
+                type="number"
+                step="any"
+                inputMode="decimal"
+                value={amountDraft}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setAmountDraft(e.target.value)}
+                onBlur={commitAmount}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    commitAmount()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setEditingAmount(false)
+                  }
+                }}
+                className="mt-0.5 w-24 h-7 px-2 text-right text-sm font-bold bg-[#FEF6E9] border border-[#E08A1E] rounded-lg focus:outline-none tabular-nums"
+              />
+            ) : (
+              <div
+                title={canInlineEditAmount ? 'Tap to quick-edit value' : undefined}
+                className={`text-sm font-bold text-[var(--text-primary)] ${
+                  canInlineEditAmount ? 'px-1.5 py-0.5 -mr-1.5 rounded-md hover:bg-[#FEF6E9] transition-colors' : ''
+                }`}
+              >
+                {formatDisplayValue(amountField, amountVal)}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {remainingFields.length > 0 && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2.5 border-t border-[var(--border-subtle)]">
-          {remainingFields.map((f) => (
-            <div key={f.id} className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
-                {displayLabels[f.id]}
-              </p>
-              <div className="text-xs font-medium text-[var(--text-primary)] mt-0.5 truncate">
-                {formatDisplayValue(f, getEffectiveCellValue(f, record.data, fields))}
+          {remainingFields.map((f) => {
+            const val = getEffectiveCellValue(f, record.data, fields)
+            const isCheckbox = f.fieldType === 'checkbox' && Boolean(onInlineUpdate)
+            return (
+              <div
+                key={f.id}
+                className="min-w-0"
+                onClick={(e) => {
+                  if (!isCheckbox) return
+                  e.stopPropagation()
+                  onInlineUpdate(record.id, {
+                    ...(record.data || {}),
+                    [String(f.id)]: !Boolean(val),
+                  })
+                }}
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
+                  {displayLabels[f.id]}
+                </p>
+                <div className="text-xs font-medium text-[var(--text-primary)] mt-0.5 truncate">
+                  {formatDisplayValue(f, val)}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -1181,6 +1318,7 @@ function MobileEntryCard({
  * RecordRegisterTable — Single-row Dock toolbar + quiet Excel Grid / Mobile Cards.
  */
 export default function RecordRegisterTable({
+  projectName = '',
   section,
   records,
   loading,
@@ -1190,6 +1328,9 @@ export default function RecordRegisterTable({
   onQuickCreateRecord,
   onInlineUpdateRecord,
   onDeleteRecord,
+  onBulkDeleteRecords,
+  onBulkUpdateEntryDate,
+  onImportCsv,
   onAddColumn,
   onDeleteField,
   onReorderFields,
@@ -1212,12 +1353,20 @@ export default function RecordRegisterTable({
   const [filterModalOpen, setFilterModalOpen]   = useState(false)
   const [filterSeedFieldId, setFilterSeedFieldId] = useState(null)
   const [totalsModalOpen, setTotalsModalOpen]   = useState(false)
+  const [csvImportOpen, setCsvImportOpen]       = useState(false)
 
-  // Floating Dock dropdowns (View & More ⋮) & inline blank column state
+  // Floating Dock dropdowns, inline blank column, Tab grid nav, collapsed date groups, bulk selection & footer modes
   const [viewMenuOpen, setViewMenuOpen]     = useState(false)
   const [sheetMenuOpen, setSheetMenuOpen]   = useState(false)
   const [addingColumn, setAddingColumn]     = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
+  const [collapsedDates, setCollapsedDates] = useState({})
+  const [activeGridCell, setActiveGridCell] = useState(null)
+  const [selectedIds, setSelectedIds]       = useState(() => new Set())
+  const [bulkDateOpen, setBulkDateOpen]     = useState(false)
+  const [bulkDateVal, setBulkDateVal]       = useState(() => getTodayYmd())
+  const [bulkBusy, setBulkBusy]             = useState(false)
+  const [footerAggMode, setFooterAggMode]   = useState({})
 
   const viewTriggerRef = useRef(null)
   const sheetTriggerRef = useRef(null)
@@ -1248,7 +1397,25 @@ export default function RecordRegisterTable({
     setSortLevels([])
     setColumnFilters([])
     setAddingColumn(false)
+    setCollapsedDates({})
+    setActiveGridCell(null)
+    setSelectedIds(new Set())
+    setBulkDateOpen(false)
   }, [section?.id])
+
+  // Keep selectedIds synced with existing records after deletions
+  useEffect(() => {
+    const validIds = new Set(records.map((r) => r.id))
+    setSelectedIds((prev) => {
+      let changed = false
+      const next = new Set()
+      prev.forEach((id) => {
+        if (validIds.has(id)) next.add(id)
+        else changed = true
+      })
+      return changed ? next : prev
+    })
+  }, [records])
 
   const processedRecords = useMemo(() => {
     const filtered = filterRecords(records, search, columnFilters, fields)
@@ -1358,17 +1525,155 @@ export default function RecordRegisterTable({
   })
 
   const hasActiveControls = sortLevels.length > 0 || columnFilters.length > 0 || Boolean(search.trim())
-  const totalGridCols = visibleFields.length + (groupByDate ? 0 : 1) + 2 // optional SL + visibleFields + blank column + Actions
+  const totalGridCols = visibleFields.length + 3 // left gutter/SL + visibleFields + blank column + Actions
   const gridGroups = groupByDate
     ? (dateGroups.length > 0
         ? dateGroups
         : [{ ...formatDateGroupMeta(getTodayYmd()), records: [], stats: computeSheetStats([], fields) }])
     : [{ dateKey: getTodayYmd(), records: processedRecords }]
 
+  const flatExpandedRecords = useMemo(() => {
+    if (!groupByDate) return processedRecords
+    const out = []
+    gridGroups.forEach((g) => {
+      if (!collapsedDates[g.dateKey]) out.push(...g.records)
+    })
+    return out
+  }, [groupByDate, gridGroups, processedRecords, collapsedDates])
+
+  const editableTabFields = useMemo(
+    () => visibleFields.filter((f) => f.fieldType !== 'formula' && f.fieldType !== 'checkbox'),
+    [visibleFields]
+  )
+
+  const handleSavedCellTab = useCallback((recordId, fieldId, delta) => {
+    const rowIdx = flatExpandedRecords.findIndex((r) => r.id === recordId)
+    const colIdx = editableTabFields.findIndex((f) => f.id === fieldId)
+    if (rowIdx === -1 || colIdx === -1) {
+      setActiveGridCell(null)
+      return
+    }
+    let nextCol = colIdx + delta
+    let nextRow = rowIdx
+    if (nextCol >= editableTabFields.length) {
+      nextCol = 0
+      nextRow += 1
+    } else if (nextCol < 0) {
+      nextCol = editableTabFields.length - 1
+      nextRow -= 1
+    }
+    if (nextRow < 0 || nextRow >= flatExpandedRecords.length) {
+      setActiveGridCell(null)
+      return
+    }
+    setActiveGridCell({
+      recordId: flatExpandedRecords[nextRow].id,
+      fieldId: editableTabFields[nextCol].id,
+    })
+  }, [flatExpandedRecords, editableTabFields])
+
+  const toggleDateCollapsed = useCallback((dateKey) => {
+    setCollapsedDates((prev) => ({ ...prev, [dateKey]: !prev[dateKey] }))
+  }, [])
+
+  const toggleSelectRow = useCallback((recordId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(recordId)) next.delete(recordId)
+      else next.add(recordId)
+      return next
+    })
+  }, [])
+
+  const allProcessedSelected =
+    processedRecords.length > 0 && processedRecords.every((r) => selectedIds.has(r.id))
+
+  const toggleSelectAll = useCallback(() => {
+    if (allProcessedSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(processedRecords.map((r) => r.id)))
+    }
+  }, [allProcessedSelected, processedRecords])
+
+  const selectedRecords = useMemo(
+    () => records.filter((r) => selectedIds.has(r.id)),
+    [records, selectedIds]
+  )
+
+  const selectedPrimaryStats = useMemo(() => {
+    if (!selectedRecords.length) return null
+    const stats = computeSheetStats(selectedRecords, fields)
+    const primary = stats.summaryFields[0]
+    if (!primary) return null
+    return {
+      label: displayLabels[primary.id] || primary.name,
+      ...stats.byField[primary.id],
+    }
+  }, [selectedRecords, fields, displayLabels])
+
+  const handleBulkDeleteClick = async () => {
+    if (!selectedRecords.length || !onBulkDeleteRecords) return
+    setBulkBusy(true)
+    try {
+      await onBulkDeleteRecords(selectedRecords)
+      setSelectedIds(new Set())
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const handleBulkDateApply = async () => {
+    if (!selectedRecords.length || !bulkDateVal || !onBulkUpdateEntryDate) return
+    setBulkBusy(true)
+    try {
+      await onBulkUpdateEntryDate(selectedRecords, bulkDateVal)
+      setBulkDateOpen(false)
+      setSelectedIds(new Set())
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const cycleFooterMode = useCallback((field) => {
+    const isNum = isNumericColumn(field)
+    if (!isNum) return
+    setFooterAggMode((prev) => {
+      const cur = prev[field.id] || 'sum'
+      const next = cur === 'sum' ? 'avg' : cur === 'avg' ? 'count' : 'sum'
+      return { ...prev, [field.id]: next }
+    })
+  }, [])
+
+  const handlePrintSheet = () => {
+    if (effectiveView === 'cards') {
+      setViewModeOverride('grid')
+      setTimeout(() => window.print(), 120)
+    } else {
+      window.print()
+    }
+  }
+
   return (
     <div className="relative">
+      {/* Clean Print / PDF Header (hidden on screen, shown on print) */}
+      <div className="print-only px-2 pb-4 mb-3 border-b border-slate-300">
+        <div className="flex items-baseline justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
+              {projectName || 'BuildLogic'}
+            </p>
+            <h2 className="text-xl font-bold text-slate-900">{section?.name}</h2>
+          </div>
+          <div className="text-right text-xs text-slate-500">
+            <p>Printed: {formatHumanDate(getTodayYmd())}</p>
+            <p>{processedRecords.length} {processedRecords.length === 1 ? 'entry' : 'entries'}</p>
+          </div>
+        </div>
+      </div>
+
       {/* ─── Single Clean Toolbar Row (Search Left + Dock Toolbar Right) ─── */}
-      <div className="flex items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-card)]">
+      <div className="no-print flex items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-card)]">
         {fields.length > 0 && records.length > 0 ? (
           <div className="relative flex items-center flex-1 sm:max-w-xs min-w-0">
             <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -1547,7 +1852,7 @@ export default function RecordRegisterTable({
         onClose={() => setSheetMenuOpen(false)}
         anchorRef={sheetTriggerRef}
         align="right"
-        widthPx={192}
+        widthPx={204}
         onMenuClick={() => setSheetMenuOpen(false)}
       >
         <AnimatedMenuItem
@@ -1568,14 +1873,34 @@ export default function RecordRegisterTable({
           </AnimatedMenuItem>
         )}
 
-        {processedRecords.length > 0 && (
+        {onImportCsv && (
           <AnimatedMenuItem
-            onClick={handleExportCsv}
+            onClick={() => setCsvImportOpen(true)}
             className="text-slate-700 hover:bg-[var(--bg-input)]"
           >
-            <Download className="w-3.5 h-3.5 text-slate-400" />
-            <span>Export CSV</span>
+            <Upload className="w-3.5 h-3.5 text-slate-400" />
+            <span>Import CSV / Paste</span>
           </AnimatedMenuItem>
+        )}
+
+        {processedRecords.length > 0 && (
+          <>
+            <AnimatedMenuItem
+              onClick={handleExportCsv}
+              className="text-slate-700 hover:bg-[var(--bg-input)]"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-400" />
+              <span>Export CSV</span>
+            </AnimatedMenuItem>
+
+            <AnimatedMenuItem
+              onClick={handlePrintSheet}
+              className="text-slate-700 hover:bg-[var(--bg-input)]"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-400" />
+              <span>Print / Save PDF</span>
+            </AnimatedMenuItem>
+          </>
         )}
 
         <div className="my-1 border-t border-[var(--border-subtle)]" />
@@ -1597,9 +1922,93 @@ export default function RecordRegisterTable({
         </AnimatedMenuItem>
       </AnimatedPortalMenu>
 
+      {/* ─── Multi-Row Selection Action Bar ─────────────────────────── */}
+      {selectedIds.size > 0 && (
+        <div className="no-print flex flex-wrap items-center justify-between gap-2.5 px-4 sm:px-6 py-2 bg-[#1E242B] text-white text-xs border-b border-[#2C333C]">
+          <div className="flex items-center gap-3">
+            <span className="font-bold text-[#F5BD6E] tabular-nums">
+              {selectedIds.size} {selectedIds.size === 1 ? 'row' : 'rows'} selected
+            </span>
+            {selectedPrimaryStats && selectedPrimaryStats.count > 0 && (
+              <span className="text-slate-300 tabular-nums">
+                {selectedPrimaryStats.label} Sum:{' '}
+                <strong className="text-white">
+                  {selectedPrimaryStats.isCurrency
+                    ? `₹${selectedPrimaryStats.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                    : selectedPrimaryStats.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                </strong>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {onBulkUpdateEntryDate && (
+              bulkDateOpen ? (
+                <div className="inline-flex items-center gap-1.5 bg-[#2B333C] px-2 py-1 rounded-lg">
+                  <input
+                    type="date"
+                    value={bulkDateVal}
+                    onChange={(e) => setBulkDateVal(e.target.value)}
+                    className="bg-transparent text-white text-xs focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={bulkBusy}
+                    onClick={handleBulkDateApply}
+                    className="px-2 py-0.5 rounded bg-[#E08A1E] hover:bg-[#C97814] text-white font-semibold"
+                  >
+                    Move
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkDateOpen(false)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBulkDateOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#2B333C] hover:bg-slate-700 text-slate-200 font-medium transition-colors"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-[#F5BD6E]" />
+                  <span>Change Date</span>
+                </button>
+              )
+            )}
+
+            {onBulkDeleteRecords && (
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={handleBulkDeleteClick}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/90 hover:bg-red-600 text-white font-semibold transition-colors disabled:opacity-50"
+              >
+                {bulkBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>Delete</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIds(new Set())
+                setBulkDateOpen(false)
+              }}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              title="Clear selection"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Active Sort & Filter Summary Pills ─────────────────────── */}
       {hasActiveControls && records.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 px-4 sm:px-6 py-2 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] text-xs">
+        <div className="no-print flex flex-wrap items-center gap-1.5 px-4 sm:px-6 py-2 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] text-xs">
           {sortLevels.map((lvl, idx) => {
             const f = fields.find((x) => String(x.id) === String(lvl.key))
             const label = f
@@ -1725,34 +2134,45 @@ export default function RecordRegisterTable({
             /* ─── Mobile / Card View ─────────────────────────────────── */
             <div className="p-3.5 sm:p-5 space-y-4 bg-[var(--bg-canvas)]/70">
               {groupByDate ? (
-                dateGroups.map((group) => (
-                  <section key={group.dateKey} className="space-y-2">
-                    <DateGroupBanner group={group} onAddForDate={onAddEntry} />
+                dateGroups.map((group) => {
+                  const isCollapsed = Boolean(collapsedDates[group.dateKey])
+                  return (
+                    <section key={group.dateKey} className="space-y-2">
+                      <DateGroupBanner
+                        group={group}
+                        isCollapsed={isCollapsed}
+                        onToggleCollapse={toggleDateCollapsed}
+                        onAddForDate={onAddEntry}
+                      />
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {group.records.map((rec, idx) => (
-                        <MobileEntryCard
-                          key={rec.id}
-                          record={rec}
-                          index={idx}
-                          showSerial={false}
-                          fields={visibleFields}
-                          displayLabels={displayLabels}
-                          onEdit={onEditEntry}
-                        />
-                      ))}
+                      {!isCollapsed && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {group.records.map((rec, idx) => (
+                            <MobileEntryCard
+                              key={rec.id}
+                              record={rec}
+                              index={idx}
+                              showSerial={false}
+                              fields={visibleFields}
+                              displayLabels={displayLabels}
+                              onEdit={onEditEntry}
+                              onInlineUpdate={onInlineUpdateRecord}
+                            />
+                          ))}
 
-                      <button
-                        type="button"
-                        onClick={() => onAddEntry(group.dateKey)}
-                        className="flex items-center justify-center gap-2 min-h-[72px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/60 hover:border-[#E08A1E]/60 text-xs font-semibold text-slate-400 hover:text-[#C97814] transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Add row</span>
-                      </button>
-                    </div>
-                  </section>
-                ))
+                          <button
+                            type="button"
+                            onClick={() => onAddEntry(group.dateKey)}
+                            className="no-print flex items-center justify-center gap-2 min-h-[72px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/60 hover:border-[#E08A1E]/60 text-xs font-semibold text-slate-400 hover:text-[#C97814] transition-colors"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Add row</span>
+                          </button>
+                        </div>
+                      )}
+                    </section>
+                  )
+                })
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {processedRecords.map((rec, idx) => (
@@ -1764,13 +2184,14 @@ export default function RecordRegisterTable({
                       fields={visibleFields}
                       displayLabels={displayLabels}
                       onEdit={onEditEntry}
+                      onInlineUpdate={onInlineUpdateRecord}
                     />
                   ))}
 
                   <button
                     type="button"
                     onClick={() => onAddEntry()}
-                    className="flex items-center justify-center gap-2 min-h-[72px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/60 hover:border-[#E08A1E]/60 text-xs font-semibold text-slate-400 hover:text-[#C97814] transition-colors"
+                    className="no-print flex items-center justify-center gap-2 min-h-[72px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/60 hover:border-[#E08A1E]/60 text-xs font-semibold text-slate-400 hover:text-[#C97814] transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add row</span>
@@ -1813,11 +2234,30 @@ export default function RecordRegisterTable({
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-[var(--bg-input)]/75 text-slate-600 border-b border-[var(--border-subtle)] text-xs font-bold select-none">
-                      {!groupByDate && (
-                        <th className="sticky left-0 z-20 bg-[var(--bg-input)] px-3 py-2.5 w-12 text-center border-r border-[var(--border-subtle)] text-slate-500 text-[11px] uppercase tracking-wider tabular-nums">
-                          SL
-                        </th>
-                      )}
+                      <th className="group/sel sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 w-11 text-center border-r border-[var(--border-subtle)] text-slate-500 text-[11px] uppercase tracking-wider tabular-nums">
+                        {processedRecords.length > 0 ? (
+                          <div className="flex items-center justify-center">
+                            {!groupByDate && selectedIds.size === 0 && (
+                              <span className="group-hover/sel:hidden">SL</span>
+                            )}
+                            <input
+                              type="checkbox"
+                              checked={allProcessedSelected}
+                              onChange={toggleSelectAll}
+                              title="Select all visible rows"
+                              className={`no-print w-3.5 h-3.5 rounded border-slate-300 text-[#E08A1E] accent-[#E08A1E] cursor-pointer ${
+                                selectedIds.size > 0
+                                  ? 'block'
+                                  : groupByDate
+                                    ? 'opacity-30 group-hover/sel:opacity-100 transition-opacity'
+                                    : 'hidden group-hover/sel:block'
+                              }`}
+                            />
+                          </div>
+                        ) : (
+                          !groupByDate ? 'SL' : ''
+                        )}
+                      </th>
 
                       {visibleFields.map((f, idx) => {
                         const activeSort = sortLevels[0] && String(sortLevels[0].key) === String(f.id)
@@ -1858,144 +2298,251 @@ export default function RecordRegisterTable({
                         onOpenFullBuilder={() => onCustomizeFields(null)}
                       />
 
-                      <th className="px-2 py-2.5 w-16 sm:w-20 text-right text-[11px] uppercase tracking-wider text-slate-400" />
+                      <th className="no-print px-2 py-2.5 w-16 sm:w-20 text-right text-[11px] uppercase tracking-wider text-slate-400" />
                     </tr>
                   </thead>
 
                   <tbody>
-                    {gridGroups.map((group) => (
-                      <Fragment key={group.dateKey}>
-                        {groupByDate && (
-                          <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-subtle)]">
-                            <td colSpan={totalGridCols} className="p-0">
-                              <div className="sticky left-0 max-w-[calc(100vw-2.25rem)] sm:max-w-full">
-                                <DateGroupBanner group={group} onAddForDate={onAddEntry} />
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                        {group.records.map((rec, idx) => {
-                          const isDeleting = deletingRecordId === rec.id
-                          const isEven = idx % 2 === 1
-                          const mobileActions = [
-                            ...(onDuplicateRecord
-                              ? [{
-                                  label: 'Duplicate',
-                                  icon: Copy,
-                                  onClick: () => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields)),
-                                }]
-                              : []),
-                            {
-                              label: 'Edit Entry',
-                              icon: Pencil,
-                              onClick: () => onEditEntry(rec),
-                            },
-                            {
-                              label: isDeleting ? 'Deleting...' : 'Delete',
-                              icon: isDeleting ? Loader2 : Trash2,
-                              danger: true,
-                              dividerBefore: true,
-                              disabled: isDeleting,
-                              onClick: () => onDeleteRecord(rec),
-                            },
-                          ]
-
-                          return (
-                            <tr
-                              key={rec.id}
-                              className={`group border-b border-[var(--border-subtle)] last:border-b-0 transition-colors ${
-                                isEven ? 'bg-[#F6F4EF]/50' : 'bg-[var(--bg-card)]'
-                              } hover:bg-[#FEF6E9]/55`}
-                            >
-                              {!groupByDate && (
-                                <td
-                                  className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-[var(--border-subtle)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
-                                    isEven ? 'bg-[#F6F4EF]' : 'bg-[var(--bg-card)]'
-                                  } group-hover:bg-[#FEF6E9]`}
-                                >
-                                  {String(idx + 1).padStart(2, '0')}
-                                </td>
-                              )}
-
-                              {visibleFields.map((f) => (
-                                <td
-                                  key={f.id}
-                                  className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
-                                >
-                                  <EditableCell
-                                    field={f}
-                                    value={getEffectiveCellValue(f, rec.data, fields)}
-                                    onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
-                                    onEditFormulaColumn={(fid) => onCustomizeFields(fid)}
+                    {gridGroups.map((group) => {
+                      const isCollapsed = Boolean(collapsedDates[group.dateKey])
+                      return (
+                        <Fragment key={group.dateKey}>
+                          {groupByDate && (
+                            <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-subtle)]">
+                              <td colSpan={totalGridCols} className="p-0">
+                                <div className="sticky left-0 max-w-[calc(100vw-2.25rem)] sm:max-w-full">
+                                  <DateGroupBanner
+                                    group={group}
+                                    isCollapsed={isCollapsed}
+                                    onToggleCollapse={toggleDateCollapsed}
+                                    onAddForDate={onAddEntry}
                                   />
-                                </td>
-                              ))}
-
-                              {/* Clicking blank trailing column cell opens New Column inline */}
-                              <td
-                                onClick={openQuickAddColumn}
-                                title="Click to add a new column"
-                                className="p-0 border-r border-dashed border-[var(--border-subtle)]/80 hover:bg-[#FEF6E9]/45 cursor-pointer"
-                              >
-                                <div className="min-h-[42px]" />
-                              </td>
-
-                              {/* Quiet row actions: hover-only on desktop, single ⋮ on mobile */}
-                              <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                                <div className="hidden sm:inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                  {onDuplicateRecord && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields))}
-                                      className="p-1.5 rounded text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
-                                      title="Duplicate Row"
-                                    >
-                                      <Copy className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => onEditEntry(rec)}
-                                    className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-[var(--bg-input)] transition-colors"
-                                    title="Edit Entry"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={isDeleting}
-                                    onClick={() => onDeleteRecord(rec)}
-                                    className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                    title="Delete Entry"
-                                  >
-                                    {isDeleting ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
-                                    ) : (
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-
-                                <div className="sm:hidden inline-flex">
-                                  <ActionMenu items={mobileActions} label="Row actions" />
                                 </div>
                               </td>
                             </tr>
+                          )}
+                          {!isCollapsed && group.records.map((rec, idx) => {
+                            const isDeleting = deletingRecordId === rec.id
+                            const isSelected = selectedIds.has(rec.id)
+                            const isEven = idx % 2 === 1
+                            const mobileActions = [
+                              ...(onDuplicateRecord
+                                ? [{
+                                    label: 'Duplicate',
+                                    icon: Copy,
+                                    onClick: () => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields)),
+                                  }]
+                                : []),
+                              {
+                                label: 'Edit Entry',
+                                icon: Pencil,
+                                onClick: () => onEditEntry(rec),
+                              },
+                              {
+                                label: isDeleting ? 'Deleting...' : 'Delete',
+                                icon: isDeleting ? Loader2 : Trash2,
+                                danger: true,
+                                dividerBefore: true,
+                                disabled: isDeleting,
+                                onClick: () => onDeleteRecord(rec),
+                              },
+                            ]
+
+                            return (
+                              <tr
+                                key={rec.id}
+                                className={`group border-b border-[var(--border-subtle)] last:border-b-0 transition-colors ${
+                                  isSelected
+                                    ? 'bg-[#FEF6E9]/85'
+                                    : isEven
+                                      ? 'bg-[#F6F4EF]/50'
+                                      : 'bg-[var(--bg-card)]'
+                                } hover:bg-[#FEF6E9]/55`}
+                              >
+                                <td
+                                  className={`sticky left-0 z-10 px-2 py-2 text-center border-r border-[var(--border-subtle)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
+                                    isSelected
+                                      ? 'bg-[#FEF6E9]'
+                                      : isEven
+                                        ? 'bg-[#F6F4EF]'
+                                        : 'bg-[var(--bg-card)]'
+                                  } group-hover:bg-[#FEF6E9]`}
+                                >
+                                  <div className="flex items-center justify-center">
+                                    {!groupByDate && !isSelected && (
+                                      <span className={selectedIds.size > 0 ? 'hidden' : 'group-hover:hidden'}>
+                                        {String(idx + 1).padStart(2, '0')}
+                                      </span>
+                                    )}
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleSelectRow(rec.id)}
+                                      title="Select row"
+                                      className={`no-print w-3.5 h-3.5 rounded border-slate-300 text-[#E08A1E] accent-[#E08A1E] cursor-pointer ${
+                                        isSelected || selectedIds.size > 0
+                                          ? 'block'
+                                          : groupByDate
+                                            ? 'opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity'
+                                            : 'hidden group-hover:block'
+                                      }`}
+                                    />
+                                  </div>
+                                </td>
+
+                                {visibleFields.map((f) => {
+                                  const isCellFocused =
+                                    activeGridCell?.recordId === rec.id &&
+                                    activeGridCell?.fieldId === f.id
+                                  return (
+                                    <td
+                                      key={f.id}
+                                      className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+                                    >
+                                      <EditableCell
+                                        field={f}
+                                        value={getEffectiveCellValue(f, rec.data, fields)}
+                                        forceEdit={isCellFocused}
+                                        onStartEdit={() => setActiveGridCell({ recordId: rec.id, fieldId: f.id })}
+                                        onStopEdit={() =>
+                                          setActiveGridCell((prev) =>
+                                            prev?.recordId === rec.id && prev?.fieldId === f.id ? null : prev
+                                          )
+                                        }
+                                        onTabNavigate={(delta) => handleSavedCellTab(rec.id, f.id, delta)}
+                                        onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
+                                        onEditFormulaColumn={(fid) => onCustomizeFields(fid)}
+                                      />
+                                    </td>
+                                  )
+                                })}
+
+                                {/* Clicking blank trailing column cell opens New Column inline */}
+                                <td
+                                  onClick={openQuickAddColumn}
+                                  title="Click to add a new column"
+                                  className="no-print p-0 border-r border-dashed border-[var(--border-subtle)]/80 hover:bg-[#FEF6E9]/45 cursor-pointer"
+                                >
+                                  <div className="min-h-[42px]" />
+                                </td>
+
+                                {/* Quiet row actions: hover-only on desktop, single ⋮ on mobile */}
+                                <td className="no-print px-2 py-1.5 text-right whitespace-nowrap">
+                                  <div className="hidden sm:inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                    {onDuplicateRecord && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields))}
+                                        className="p-1.5 rounded text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
+                                        title="Duplicate Row"
+                                      >
+                                        <Copy className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => onEditEntry(rec)}
+                                      className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-[var(--bg-input)] transition-colors"
+                                      title="Edit Entry"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isDeleting}
+                                      onClick={() => onDeleteRecord(rec)}
+                                      className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                      title="Delete Entry"
+                                    >
+                                      {isDeleting ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                                      ) : (
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+
+                                  <div className="sm:hidden inline-flex">
+                                    <ActionMenu items={mobileActions} label="Row actions" />
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+
+                          {!isCollapsed && (
+                            <BlankEntryRow
+                              fields={visibleFields}
+                              allFields={fields}
+                              entryDate={group.dateKey}
+                              showSerial={!groupByDate}
+                              onCreateRow={quickCreateHandler}
+                              onOpenBlankColumn={openQuickAddColumn}
+                              onOpenFullModal={() => onAddEntry(group.dateKey)}
+                            />
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+
+                  {/* Sticky Grand Totals Footer */}
+                  {processedRecords.length > 0 && (
+                    <tfoot className="sticky bottom-0 z-10 bg-[var(--bg-input)] border-t-2 border-[var(--border-subtle)] text-xs font-bold text-[var(--text-primary)]">
+                      <tr>
+                        <td className="sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 text-center border-r border-[var(--border-subtle)] text-[11px] uppercase tracking-wider text-slate-500">
+                          Σ
+                        </td>
+                        {visibleFields.map((f) => {
+                          const stat = statsByField[f.id]
+                          if (stat) {
+                            const mode = footerAggMode[f.id] || 'sum'
+                            const modeLabel = mode === 'sum' ? 'Sum' : mode === 'avg' ? 'Avg' : 'Count'
+                            const valNum = mode === 'sum' ? stat.sum : mode === 'avg' ? stat.avg : stat.count
+                            const formatted =
+                              mode === 'count'
+                                ? `${stat.count} vals`
+                                : stat.isCurrency
+                                  ? `₹${valNum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                                  : valNum.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+                            return (
+                              <td
+                                key={f.id}
+                                className="px-3 py-2 border-r border-[var(--border-subtle)] whitespace-nowrap tabular-nums"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => cycleFooterMode(f)}
+                                  title="Click to switch between Sum / Avg / Count"
+                                  className="w-full flex items-center justify-between gap-2 text-left hover:text-[#C97814] transition-colors"
+                                >
+                                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+                                    {modeLabel}
+                                  </span>
+                                  <span>{formatted}</span>
+                                </button>
+                              </td>
+                            )
+                          }
+                          const filledCount = processedRecords.filter((rec) => {
+                            const v = getEffectiveCellValue(f, rec.data, fields)
+                            if (f.fieldType === 'checkbox') return Boolean(v)
+                            return v !== undefined && v !== null && String(v).trim() !== ''
+                          }).length
+                          return (
+                            <td
+                              key={f.id}
+                              className="px-3 py-2 border-r border-[var(--border-subtle)] whitespace-nowrap text-[11px] font-medium text-slate-400 tabular-nums"
+                            >
+                              {filledCount > 0 ? `${filledCount} filled` : '—'}
+                            </td>
                           )
                         })}
-
-                        <BlankEntryRow
-                          fields={visibleFields}
-                          allFields={fields}
-                          entryDate={group.dateKey}
-                          showSerial={!groupByDate}
-                          onCreateRow={quickCreateHandler}
-                          onOpenBlankColumn={openQuickAddColumn}
-                          onOpenFullModal={() => onAddEntry(group.dateKey)}
-                        />
-                      </Fragment>
-                    ))}
-                  </tbody>
+                        <td className="no-print border-r border-dashed border-[var(--border-subtle)]" />
+                        <td className="no-print px-2 py-2" />
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
 
@@ -2003,7 +2550,7 @@ export default function RecordRegisterTable({
               {canScrollRight && (
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#FCFBF8]/95 via-[#FCFBF8]/60 to-transparent z-20"
+                  className="no-print pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#FCFBF8]/95 via-[#FCFBF8]/60 to-transparent z-20"
                 />
               )}
             </div>
@@ -2043,6 +2590,15 @@ export default function RecordRegisterTable({
         fields={fields}
         displayLabels={displayLabels}
       />
+
+      {onImportCsv && (
+        <CsvImportModal
+          open={csvImportOpen}
+          onClose={() => setCsvImportOpen(false)}
+          section={section}
+          onImport={onImportCsv}
+        />
+      )}
     </div>
   )
 }
