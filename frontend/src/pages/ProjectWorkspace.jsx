@@ -268,6 +268,23 @@ export default function ProjectWorkspace() {
     }
   }
 
+  const handleQuickCreateRecord = async (data = {}, entryDate = null) => {
+    try {
+      const res = await createRecord(activeSection.id, data, entryDate)
+      setRecords((prev) => [...prev, res.data])
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === activeSection.id ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
+        )
+      )
+      showToast('Row added')
+      return res.data
+    } catch (err) {
+      showToast(err.message, 'error')
+      throw err
+    }
+  }
+
   const handleInlineUpdateRecord = async (recordId, data) => {
     try {
       setRecords((prev) =>
@@ -379,6 +396,7 @@ export default function ProjectWorkspace() {
                   setRecordModalOpen(true)
                 }}
                 onDuplicateRecord={handleDuplicateRecord}
+                onQuickCreateRecord={handleQuickCreateRecord}
                 onInlineUpdateRecord={handleInlineUpdateRecord}
                 onDeleteRecord={(rec) => setDeleteRecordTarget(rec)}
                 onAddColumn={handleAddField}

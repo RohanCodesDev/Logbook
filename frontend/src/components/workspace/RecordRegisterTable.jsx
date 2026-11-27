@@ -1,6 +1,6 @@
 import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import {
-  Trash2, Search, Download, Plus, Pencil, Copy,
+  Trash2, Search, Download, Plus, Pencil, Copy, Check, Maximize2,
   CheckCircle2, Minus, Loader2, SlidersHorizontal,
   Table as TableIcon, LayoutList, IndianRupee, Hash, Calendar, Type, List, CheckSquare,
   Calculator, Sigma, ArrowUpDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
@@ -16,10 +16,13 @@ import FilterModal from './FilterModal'
 import TotalsModal from './TotalsModal'
 import {
   CURRENCY_NAME_RE,
+  evaluateFormulaValue,
+  formatDateGroupMeta,
   formatHumanDate,
   formatPlainValue,
   getEffectiveCellValue,
   getRecordDateKey,
+  getTodayYmd,
   groupRecordsByDate,
   isCurrencyField,
   isNumericColumn,
@@ -478,6 +481,556 @@ function ColumnHeaderCell({
   )
 }
 
+const QUICK_COLUMN_TYPES = [
+  { value: 'text',     label: 'Short Text',   icon: Type,        color: 'text-slate-500' },
+  { value: 'number',   label: 'Number',       icon: Hash,        color: 'text-blue-600' },
+  { value: 'currency', label: 'Amount (INR)', icon: IndianRupee, color: 'text-emerald-600' },
+  { value: 'date',     label: 'Date',         icon: Calendar,    color: 'text-[#E08A1E]' },
+]
+
+/**
+ * Blank trailing column header — click anywhere in the blank column to add a new column inline.
+ */
+function BlankColumnHeader({
+  isOpen,
+  existingCount,
+  onOpen,
+  onCancel,
+  onCreateColumn,
+  onOpenFullBuilder,
+}) {
+  const [name, setName]             = useState('')
+  const [fieldType, setFieldType]   = useState('text')
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false)
+  const [saving, setSaving]         = useState(false)
+
+  const headerRef      = useRef(null)
+  const inputRef       = useRef(null)
+  const typeTriggerRef = useRef(null)
+  const savingRef      = useRef(false)
+  const nameRef        = useRef('')
+  const typeRef        = useRef('text')
+  const typeMenuRef    = useRef(false)
+
+  nameRef.current = name
+  typeRef.current = fieldType
+  typeMenuRef.current = typeMenuOpen
+
+  useEffect(() => {
+    if (!isOpen) {
+      setName('')
+      setFieldType('text')
+      setTypeMenuOpen(false)
+      savingRef.current = false
+      return
+    }
+    requestAnimationFrame(() => {
+      headerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      inputRef.current?.focus()
+    })
+  }, [isOpen])
+
+  const submitColumn = async (allowDefaultName = false) => {
+    if (savingRef.current) return
+    const trimmed = nameRef.current.trim()
+    const finalName = trimmed || (allowDefaultName ? `Column ${existingCount + 1}` : '')
+    if (!finalName) {
+      onCancel()
+      return
+    }
+    savingRef.current = true
+    setSaving(true)
+    try {
+      await onCreateColumn({
+        name: finalName,
+        fieldType: typeRef.current,
+        options: [],
+        formula: null,
+        isRequired: false,
+      })
+      setName('')
+      onCancel()
+    } catch {
+      // keep open so user can adjust name on error
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
+
+  const handleBlur = () => {
+    setTimeout(() => {
+      if (typeMenuRef.current) return
+      if (headerRef.current?.contains(document.activeElement)) return
+      if (nameRef.current.trim()) {
+        submitColumn(false)
+      } else {
+        onCancel()
+      }
+    }, 90)
+  }
+
+  const activeTypeMeta = QUICK_COLUMN_TYPES.find((t) => t.value === fieldType) || QUICK_COLUMN_TYPES[0]
+  const ActiveTypeIcon = activeTypeMeta.icon
+
+  return (
+    <th
+      ref={headerRef}
+      className={`px-2 py-2 border-r border-dashed border-[var(--border-subtle)] whitespace-nowrap select-none transition-all ${
+        isOpen ? 'min-w-[225px] bg-[#FEF6E9]/60' : 'min-w-[132px]'
+      }`}
+    >
+      {isOpen ? (
+        <div className="flex items-center gap-1">
+          <button
+            ref={typeTriggerRef}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setTypeMenuOpen((prev) => !prev)}
+            title={`Column type: ${activeTypeMeta.label}`}
+            className="h-7 px-1.5 rounded border border-[var(--border-subtle)] bg-[var(--bg-card)] hover:border-[#E08A1E] inline-flex items-center justify-center flex-shrink-0 transition-colors"
+          >
+            <ActiveTypeIcon className={`w-3.5 h-3.5 ${activeTypeMeta.color}`} />
+          </button>
+
+          <input
+            ref={inputRef}
+            type="text"
+            value={name}
+            disabled={saving}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                submitColumn(true)
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                setTypeMenuOpen(false)
+                onCancel()
+              }
+            }}
+            placeholder={`Column ${existingCount + 1}...`}
+            className="w-full min-w-[110px] h-7 px-2 rounded bg-[var(--bg-card)] text-[var(--text-primary)] text-xs font-semibold border border-[#E08A1E] focus:outline-none normal-case tracking-normal"
+          />
+
+          <button
+            type="button"
+            disabled={saving}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => submitColumn(true)}
+            title="Save column"
+            className="h-7 w-7 rounded bg-[#E08A1E] hover:bg-[#C97814] text-white inline-flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          </button>
+
+          <AnimatedPortalMenu
+            open={typeMenuOpen}
+            onClose={() => setTypeMenuOpen(false)}
+            anchorRef={typeTriggerRef}
+            align="left"
+            widthPx={196}
+            className="font-normal normal-case tracking-normal text-left"
+          >
+            {QUICK_COLUMN_TYPES.map((t) => {
+              const Icon = t.icon
+              const isSelected = fieldType === t.value
+              return (
+                <AnimatedMenuItem
+                  key={t.value}
+                  onClick={() => {
+                    setFieldType(t.value)
+                    setTypeMenuOpen(false)
+                    inputRef.current?.focus()
+                  }}
+                  className={isSelected ? 'bg-[#FEF6E9] text-[#C97814] font-semibold' : 'text-slate-700 hover:bg-[var(--bg-input)]'}
+                >
+                  <Icon className={`w-3.5 h-3.5 ${t.color}`} />
+                  <span>{t.label}</span>
+                </AnimatedMenuItem>
+              )
+            })}
+            <div className="my-1 border-t border-[var(--border-subtle)]" />
+            <AnimatedMenuItem
+              onClick={() => {
+                setTypeMenuOpen(false)
+                onCancel()
+                onOpenFullBuilder()
+              }}
+              className="text-slate-700 hover:bg-[var(--bg-input)]"
+            >
+              <Calculator className="w-3.5 h-3.5 text-[#E08A1E]" />
+              <span>Dropdown / Formula...</span>
+            </AnimatedMenuItem>
+          </AnimatedPortalMenu>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9]/70 transition-colors text-left"
+          title="Click to add a new column"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>New column</span>
+        </button>
+      )}
+    </th>
+  )
+}
+
+/**
+ * Blank ghost row at the bottom of a date group (or table) — click any cell to type and add a row inline.
+ */
+function BlankEntryRow({
+  fields,
+  allFields,
+  entryDate,
+  showSerial,
+  onCreateRow,
+  onOpenBlankColumn,
+  onOpenFullModal,
+}) {
+  const [draftData, setDraftData]         = useState({})
+  const [activeFieldId, setActiveFieldId] = useState(null)
+  const [saving, setSaving]               = useState(false)
+
+  const rowRef       = useRef(null)
+  const inputRef     = useRef(null)
+  const draftRef     = useRef({})
+  const savingRef    = useRef(false)
+  const switchingRef = useRef(false)
+
+  draftRef.current = draftData
+
+  const editableFields = useMemo(
+    () => fields.filter((f) => f.fieldType !== 'formula'),
+    [fields]
+  )
+  const firstEditableFieldId = editableFields[0]?.id ?? null
+
+  useEffect(() => {
+    if (!activeFieldId) return
+    switchingRef.current = false
+    if (inputRef.current) {
+      inputRef.current.focus()
+      if (inputRef.current.select) inputRef.current.select()
+    }
+  }, [activeFieldId])
+
+  const hasAnyValue = (data) =>
+    Object.values(data || {}).some((v) => {
+      if (typeof v === 'boolean') return v
+      return v !== undefined && v !== null && String(v).trim() !== ''
+    })
+
+  const prepareData = (raw) => {
+    const clean = {}
+    for (const f of fields) {
+      if (f.fieldType === 'formula') continue
+      const key = String(f.id)
+      const val = raw[key]
+      if (val === undefined || val === null || val === '') continue
+      if (f.fieldType === 'number' || f.fieldType === 'currency') {
+        const n = Number(val)
+        clean[key] = Number.isNaN(n) ? val : n
+      } else {
+        clean[key] = val
+      }
+    }
+    return clean
+  }
+
+  const commitRow = async (rawOverride = null, forceCreate = false) => {
+    if (savingRef.current) return
+    const merged = rawOverride ?? draftRef.current
+    if (!forceCreate && !hasAnyValue(merged)) {
+      setActiveFieldId(null)
+      setDraftData({})
+      draftRef.current = {}
+      return
+    }
+
+    savingRef.current = true
+    setSaving(true)
+    try {
+      await onCreateRow(prepareData(merged), entryDate)
+      setDraftData({})
+      draftRef.current = {}
+      setActiveFieldId(null)
+    } catch {
+      // Toast shown by parent; keep draft intact
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
+
+  const cancelDraft = () => {
+    setDraftData({})
+    draftRef.current = {}
+    setActiveFieldId(null)
+  }
+
+  const updateDraftValue = (fieldId, val) => {
+    const next = { ...draftRef.current, [String(fieldId)]: val }
+    draftRef.current = next
+    setDraftData(next)
+    return next
+  }
+
+  const moveFocusBy = (fieldId, delta) => {
+    const idx = editableFields.findIndex((f) => f.id === fieldId)
+    const nextField = editableFields[idx + delta]
+    if (!nextField) {
+      if (delta > 0) {
+        commitRow(draftRef.current, hasAnyValue(draftRef.current))
+      }
+      return
+    }
+    switchingRef.current = true
+    setActiveFieldId(nextField.id)
+  }
+
+  const handleCellBlur = () => {
+    setTimeout(() => {
+      if (switchingRef.current || savingRef.current) return
+      if (rowRef.current?.contains(document.activeElement)) return
+      commitRow(draftRef.current, false)
+    }, 80)
+  }
+
+  const handleKeyDown = (field, e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitRow(draftRef.current, true)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelDraft()
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      moveFocusBy(field.id, e.shiftKey ? -1 : 1)
+    }
+  }
+
+  const isRowActive = activeFieldId !== null || hasAnyValue(draftData)
+
+  return (
+    <tr
+      ref={rowRef}
+      className={`group/blank border-b border-[var(--border-subtle)]/75 last:border-b-0 transition-colors ${
+        isRowActive ? 'bg-[#FEF6E9]/45' : 'bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/40'
+      }`}
+    >
+      {showSerial && (
+        <td className="sticky left-0 z-10 px-3 py-1.5 text-center border-r border-[var(--border-subtle)] bg-[var(--bg-card)] group-hover/blank:bg-[#FEF6E9]">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => commitRow(draftRef.current, true)}
+            title="Click to add a new blank row"
+            className="w-6 h-6 rounded-md inline-flex items-center justify-center text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E08A1E]" /> : <Plus className="w-3.5 h-3.5" />}
+          </button>
+        </td>
+      )}
+
+      {fields.map((f) => {
+        const key = String(f.id)
+        const val = draftData[key] ?? ''
+        const isEditingCell = activeFieldId === f.id
+
+        if (f.fieldType === 'formula') {
+          const previewVal = hasAnyValue(draftData)
+            ? evaluateFormulaValue(f, draftData, allFields)
+            : null
+          return (
+            <td
+              key={f.id}
+              onClick={() => firstEditableFieldId && setActiveFieldId(firstEditableFieldId)}
+              className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
+            >
+              <div className="w-full min-h-[38px] px-3 py-1.5 flex items-center text-sm">
+                {previewVal !== null && previewVal !== undefined ? (
+                  formatDisplayValue(f, previewVal)
+                ) : (
+                  <span className="text-slate-300 text-xs">—</span>
+                )}
+              </div>
+            </td>
+          )
+        }
+
+        if (f.fieldType === 'checkbox') {
+          return (
+            <td
+              key={f.id}
+              onClick={() => {
+                const next = updateDraftValue(f.id, !Boolean(draftRef.current[key]))
+                commitRow(next, true)
+              }}
+              className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
+            >
+              <div className="w-full min-h-[38px] flex items-center justify-center text-slate-300 hover:text-[#C97814]">
+                <Plus className="w-3 h-3 opacity-0 group-hover/blank:opacity-70 transition-opacity" />
+              </div>
+            </td>
+          )
+        }
+
+        return (
+          <td
+            key={f.id}
+            className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+          >
+            {isEditingCell ? (
+              f.fieldType === 'select' ? (
+                <AnimatedDropdown
+                  defaultOpen={true}
+                  placeholder="Select..."
+                  value={val}
+                  onChange={(nextVal) => {
+                    const next = updateDraftValue(f.id, nextVal)
+                    if (nextVal) {
+                      commitRow(next, true)
+                    } else {
+                      setActiveFieldId(null)
+                    }
+                  }}
+                  onCloseComplete={() => {
+                    if (!savingRef.current && !hasAnyValue(draftRef.current)) {
+                      setActiveFieldId(null)
+                    }
+                  }}
+                  options={[
+                    { value: '', label: '— Clear —' },
+                    ...(f.options || []).map((opt) => ({ value: opt, label: opt })),
+                  ]}
+                  buttonClassName="h-9 px-2 py-1 rounded bg-[#FEF6E9] border-[#E08A1E] text-sm"
+                />
+              ) : f.fieldType === 'currency' || (f.fieldType === 'text' && CURRENCY_NAME_RE.test(f.name)) ? (
+                <div className="relative flex items-center w-full">
+                  <span className="absolute left-2 text-xs font-bold text-slate-400 pointer-events-none">₹</span>
+                  <input
+                    ref={inputRef}
+                    type="number"
+                    step="any"
+                    inputMode="decimal"
+                    value={val}
+                    onChange={(e) => updateDraftValue(f.id, e.target.value)}
+                    onBlur={handleCellBlur}
+                    onKeyDown={(e) => handleKeyDown(f, e)}
+                    placeholder="0.00"
+                    className="w-full h-9 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-semibold border border-[#E08A1E] rounded focus:outline-none"
+                  />
+                </div>
+              ) : f.fieldType === 'number' ? (
+                <input
+                  ref={inputRef}
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  value={val}
+                  onChange={(e) => updateDraftValue(f.id, e.target.value)}
+                  onBlur={handleCellBlur}
+                  onKeyDown={(e) => handleKeyDown(f, e)}
+                  placeholder="0"
+                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+                />
+              ) : f.fieldType === 'date' ? (
+                <input
+                  ref={inputRef}
+                  type="date"
+                  value={val || entryDate || getTodayYmd()}
+                  onChange={(e) => updateDraftValue(f.id, e.target.value)}
+                  onBlur={handleCellBlur}
+                  onKeyDown={(e) => handleKeyDown(f, e)}
+                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+                />
+              ) : (
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={val}
+                  onChange={(e) => updateDraftValue(f.id, e.target.value)}
+                  onBlur={handleCellBlur}
+                  onKeyDown={(e) => handleKeyDown(f, e)}
+                  placeholder={`Enter ${f.name}...`}
+                  className="w-full h-9 px-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
+                />
+              )
+            ) : (
+              <div
+                onClick={() => setActiveFieldId(f.id)}
+                className="w-full min-h-[38px] px-3 py-1.5 flex items-center cursor-pointer transition-colors select-none text-sm hover:bg-[#FEF6E9]/70"
+              >
+                {val !== '' && val !== undefined ? (
+                  formatDisplayValue(f, val)
+                ) : f.id === firstEditableFieldId ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-400/85 group-hover/blank:text-[#C97814] transition-colors">
+                    <Plus className="w-3 h-3" />
+                    <span>New row...</span>
+                  </span>
+                ) : (
+                  <span className="text-transparent group-hover/blank:text-slate-300 text-xs select-none">+</span>
+                )}
+              </div>
+            )}
+          </td>
+        )
+      })}
+
+      {/* Clicking blank trailing column cell also opens New Column */}
+      <td
+        onClick={onOpenBlankColumn}
+        title="Click to add a new column"
+        className="p-0 border-r border-dashed border-[var(--border-subtle)]/80 hover:bg-[#FEF6E9]/45 cursor-pointer"
+      >
+        <div className="min-h-[38px]" />
+      </td>
+
+      {/* Quiet quick-create / full-modal controls */}
+      <td className="px-2 py-1 text-right whitespace-nowrap">
+        <div
+          className={`inline-flex items-center gap-0.5 transition-opacity ${
+            isRowActive ? 'opacity-100' : 'sm:opacity-0 sm:group-hover/blank:opacity-100 focus-within:opacity-100'
+          }`}
+        >
+          <button
+            type="button"
+            disabled={saving}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => commitRow(draftRef.current, true)}
+            className="p-1.5 rounded text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
+            title={isRowActive ? 'Save row' : 'Add blank row'}
+          >
+            {saving ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#E08A1E]" />
+            ) : isRowActive ? (
+              <Check className="w-3.5 h-3.5 text-[#E08A1E]" />
+            ) : (
+              <Plus className="w-3.5 h-3.5" />
+            )}
+          </button>
+          {onOpenFullModal && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onOpenFullModal}
+              className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-[var(--bg-input)] transition-colors"
+              title="Open full entry form"
+            >
+              <Maximize2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 /**
  * Slim center-aligned Date Group Banner:
  * Center: "27 Nov 2026 · Fri" + TODAY pill (clearly distinct from cell values)
@@ -507,7 +1060,7 @@ function DateGroupBanner({ group, onAddForDate }) {
 
       {/* Right: Bold day total + subtle "+" icon */}
       <div className="flex items-center justify-end gap-2 min-w-0">
-        {primarySummary && (
+        {primarySummary && group.records.length > 0 && (
           <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] tabular-nums whitespace-nowrap">
             {primarySummary.isCurrency
               ? `₹${primarySummary.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
@@ -634,8 +1187,10 @@ export default function RecordRegisterTable({
   onAddEntry,
   onEditEntry,
   onDuplicateRecord,
+  onQuickCreateRecord,
   onInlineUpdateRecord,
   onDeleteRecord,
+  onAddColumn,
   onDeleteField,
   onReorderFields,
   onCustomizeFields,
@@ -658,9 +1213,10 @@ export default function RecordRegisterTable({
   const [filterSeedFieldId, setFilterSeedFieldId] = useState(null)
   const [totalsModalOpen, setTotalsModalOpen]   = useState(false)
 
-  // Floating Dock dropdowns (View & More ⋮) rendered cleanly via AnimatedPortalMenu
+  // Floating Dock dropdowns (View & More ⋮) & inline blank column state
   const [viewMenuOpen, setViewMenuOpen]     = useState(false)
   const [sheetMenuOpen, setSheetMenuOpen]   = useState(false)
+  const [addingColumn, setAddingColumn]     = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
 
   const viewTriggerRef = useRef(null)
@@ -691,6 +1247,7 @@ export default function RecordRegisterTable({
     setSearch('')
     setSortLevels([])
     setColumnFilters([])
+    setAddingColumn(false)
   }, [section?.id])
 
   const processedRecords = useMemo(() => {
@@ -788,8 +1345,25 @@ export default function RecordRegisterTable({
     URL.revokeObjectURL(url)
   }
 
+  const openQuickAddColumn = useCallback(() => {
+    if (onAddColumn) {
+      setAddingColumn(true)
+    } else {
+      onCustomizeFields(null)
+    }
+  }, [onAddColumn, onCustomizeFields])
+
+  const quickCreateHandler = onQuickCreateRecord || (async (_data, entryDate) => {
+    onAddEntry(entryDate)
+  })
+
   const hasActiveControls = sortLevels.length > 0 || columnFilters.length > 0 || Boolean(search.trim())
-  const totalGridCols = visibleFields.length + (groupByDate ? 0 : 1) + 1 // optional SL + visibleFields + Actions
+  const totalGridCols = visibleFields.length + (groupByDate ? 0 : 1) + 2 // optional SL + visibleFields + blank column + Actions
+  const gridGroups = groupByDate
+    ? (dateGroups.length > 0
+        ? dateGroups
+        : [{ ...formatDateGroupMeta(getTodayYmd()), records: [], stats: computeSheetStats([], fields) }])
+    : [{ dateKey: getTodayYmd(), records: processedRecords }]
 
   return (
     <div className="relative">
@@ -1115,7 +1689,7 @@ export default function RecordRegisterTable({
           <Loader2 className="w-5 h-5 animate-spin" />
           Loading entries...
         </div>
-      ) : records.length === 0 ? (
+      ) : records.length === 0 && effectiveView === 'cards' ? (
         <EmptyState
           icon={FileSpreadsheet}
           title={`No entries in ${section.name} yet`}
@@ -1127,7 +1701,7 @@ export default function RecordRegisterTable({
             </Button>
           }
         />
-      ) : processedRecords.length === 0 ? (
+      ) : records.length > 0 && processedRecords.length === 0 ? (
         <EmptyState
           icon={Search}
           title="No matching entries"
@@ -1167,6 +1741,15 @@ export default function RecordRegisterTable({
                           onEdit={onEditEntry}
                         />
                       ))}
+
+                      <button
+                        type="button"
+                        onClick={() => onAddEntry(group.dateKey)}
+                        className="flex items-center justify-center gap-2 min-h-[72px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/60 hover:border-[#E08A1E]/60 text-xs font-semibold text-slate-400 hover:text-[#C97814] transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add row</span>
+                      </button>
                     </div>
                   </section>
                 ))
@@ -1183,6 +1766,15 @@ export default function RecordRegisterTable({
                       onEdit={onEditEntry}
                     />
                   ))}
+
+                  <button
+                    type="button"
+                    onClick={() => onAddEntry()}
+                    className="flex items-center justify-center gap-2 min-h-[72px] rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/60 hover:border-[#E08A1E]/60 text-xs font-semibold text-slate-400 hover:text-[#C97814] transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add row</span>
+                  </button>
                 </div>
               )}
 
@@ -1257,15 +1849,21 @@ export default function RecordRegisterTable({
                         )
                       })}
 
-                      <th className="px-2 py-2.5 w-20 sm:w-24 text-right text-[11px] uppercase tracking-wider text-slate-400" />
+                      <BlankColumnHeader
+                        isOpen={addingColumn}
+                        existingCount={fields.length}
+                        onOpen={openQuickAddColumn}
+                        onCancel={() => setAddingColumn(false)}
+                        onCreateColumn={(payload) => onAddColumn?.(payload)}
+                        onOpenFullBuilder={() => onCustomizeFields(null)}
+                      />
+
+                      <th className="px-2 py-2.5 w-16 sm:w-20 text-right text-[11px] uppercase tracking-wider text-slate-400" />
                     </tr>
                   </thead>
 
                   <tbody>
-                    {(groupByDate
-                      ? dateGroups
-                      : [{ dateKey: '__all', records: processedRecords }]
-                    ).map((group) => (
+                    {gridGroups.map((group) => (
                       <Fragment key={group.dateKey}>
                         {groupByDate && (
                           <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-subtle)]">
@@ -1333,6 +1931,15 @@ export default function RecordRegisterTable({
                                 </td>
                               ))}
 
+                              {/* Clicking blank trailing column cell opens New Column inline */}
+                              <td
+                                onClick={openQuickAddColumn}
+                                title="Click to add a new column"
+                                className="p-0 border-r border-dashed border-[var(--border-subtle)]/80 hover:bg-[#FEF6E9]/45 cursor-pointer"
+                              >
+                                <div className="min-h-[42px]" />
+                              </td>
+
                               {/* Quiet row actions: hover-only on desktop, single ⋮ on mobile */}
                               <td className="px-2 py-1.5 text-right whitespace-nowrap">
                                 <div className="hidden sm:inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
@@ -1376,6 +1983,16 @@ export default function RecordRegisterTable({
                             </tr>
                           )
                         })}
+
+                        <BlankEntryRow
+                          fields={visibleFields}
+                          allFields={fields}
+                          entryDate={group.dateKey}
+                          showSerial={!groupByDate}
+                          onCreateRow={quickCreateHandler}
+                          onOpenBlankColumn={openQuickAddColumn}
+                          onOpenFullModal={() => onAddEntry(group.dateKey)}
+                        />
                       </Fragment>
                     ))}
                   </tbody>
