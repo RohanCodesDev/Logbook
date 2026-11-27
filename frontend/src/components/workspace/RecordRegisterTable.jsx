@@ -53,14 +53,14 @@ function getColumnWidthClass(fieldType) {
  * Returns icon corresponding to column data type or semantic currency/number name
  */
 function getFieldIcon(field) {
-  if (!field) return <Type className="w-3 h-3 text-slate-400" />
-  if (field.fieldType === 'formula') return <Calculator className="w-3 h-3 text-[#C97814]" />
-  if (isCurrencyField(field)) return <IndianRupee className="w-3 h-3 text-emerald-600" />
-  if (field.fieldType === 'number') return <Hash className="w-3 h-3 text-blue-600" />
-  if (field.fieldType === 'date') return <Calendar className="w-3 h-3 text-[#E08A1E]" />
-  if (field.fieldType === 'select') return <List className="w-3 h-3 text-purple-600" />
-  if (field.fieldType === 'checkbox') return <CheckSquare className="w-3 h-3 text-teal-600" />
-  return <Type className="w-3 h-3 text-slate-400" />
+  if (!field) return <Type className="w-3.5 h-3.5 text-slate-400" />
+  if (field.fieldType === 'formula') return <Calculator className="w-3.5 h-3.5 text-[#C97814]" />
+  if (isCurrencyField(field)) return <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+  if (field.fieldType === 'number') return <Hash className="w-3.5 h-3.5 text-blue-600" />
+  if (field.fieldType === 'date') return <Calendar className="w-3.5 h-3.5 text-[#E08A1E]" />
+  if (field.fieldType === 'select') return <List className="w-3.5 h-3.5 text-purple-600" />
+  if (field.fieldType === 'checkbox') return <CheckSquare className="w-3.5 h-3.5 text-teal-600" />
+  return <Type className="w-3.5 h-3.5 text-slate-400" />
 }
 
 /**
@@ -71,7 +71,7 @@ function formatDisplayValue(field, value) {
     const isChecked = Boolean(value)
     return (
       <span
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
           isChecked
             ? 'bg-[#DCFCE7] text-[#166534] ring-1 ring-[#BBF7D0]'
             : 'bg-[var(--bg-input)] text-slate-500'
@@ -85,7 +85,7 @@ function formatDisplayValue(field, value) {
 
   const hasValue = value !== undefined && value !== null && String(value).trim() !== ''
   if (!hasValue) {
-    return <span className="text-slate-300 text-xs">—</span>
+    return <span className="text-slate-300 text-xs font-normal">—</span>
   }
 
   if (field.fieldType === 'date') {
@@ -98,10 +98,10 @@ function formatDisplayValue(field, value) {
 
   if (field.fieldType === 'formula') {
     const num = Number(value)
-    if (Number.isNaN(num)) return <span className="text-slate-300 text-xs">—</span>
+    if (Number.isNaN(num)) return <span className="text-slate-300 text-xs font-normal">—</span>
     const isCurr = field.formula?.format === 'currency'
     return (
-      <span className="font-semibold text-[#C97814] tabular-nums">
+      <span className="font-medium text-[#C97814] tabular-nums">
         {isCurr
           ? `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
           : num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
@@ -111,9 +111,9 @@ function formatDisplayValue(field, value) {
 
   if (field.fieldType === 'currency') {
     const num = Number(value)
-    if (Number.isNaN(num)) return <span className="text-sm text-[var(--text-primary)]">{String(value)}</span>
+    if (Number.isNaN(num)) return <span className="text-sm font-medium text-[var(--text-primary)]">{String(value)}</span>
     return (
-      <span className="font-semibold text-[var(--text-primary)] tabular-nums">
+      <span className="font-medium text-[var(--text-primary)] tabular-nums">
         ₹{num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
       </span>
     )
@@ -121,7 +121,7 @@ function formatDisplayValue(field, value) {
 
   if (field.fieldType === 'number') {
     const num = Number(value)
-    if (Number.isNaN(num)) return <span className="text-sm text-[var(--text-primary)]">{String(value)}</span>
+    if (Number.isNaN(num)) return <span className="text-sm font-medium text-[var(--text-primary)]">{String(value)}</span>
     return (
       <span className="font-medium text-[var(--text-primary)] tabular-nums">
         {num.toLocaleString('en-IN')}
@@ -136,7 +136,7 @@ function formatDisplayValue(field, value) {
   ) {
     const num = Number(String(value).trim())
     return (
-      <span className="font-semibold text-[var(--text-primary)] tabular-nums">
+      <span className="font-medium text-[var(--text-primary)] tabular-nums">
         ₹{num.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
       </span>
     )
@@ -144,13 +144,13 @@ function formatDisplayValue(field, value) {
 
   if (field.fieldType === 'select') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#FEF6E9] text-[#92400E] text-xs font-semibold border border-[#FDE68A]">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-[#FEF6E9] text-[#92400E] text-xs font-medium border border-[#FDE68A]">
         {value}
       </span>
     )
   }
 
-  return <span className="text-[var(--text-primary)] break-words">{String(value)}</span>
+  return <span className="font-medium text-[var(--text-primary)] break-words">{String(value)}</span>
 }
 
 /**
@@ -290,7 +290,7 @@ function EditableCell({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder="0.00"
-            className="w-full h-10 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-semibold border border-[#E08A1E] rounded focus:outline-none"
+            className="w-full h-10 pl-6 pr-2 bg-[#FEF6E9] text-[var(--text-primary)] text-sm font-medium border border-[#E08A1E] rounded focus:outline-none"
           />
         </div>
       )
@@ -354,7 +354,7 @@ function EditableCell({
           startEditing()
         }
       }}
-      className="w-full min-h-[42px] px-3 py-2 flex items-center cursor-pointer transition-colors select-none text-sm rounded hover:bg-[#FEF6E9]/70 text-[var(--text-primary)]"
+      className="w-full min-h-[42px] px-3 py-2 flex items-center cursor-pointer transition-colors select-none text-sm font-medium rounded hover:bg-[#FEF6E9]/70 text-[var(--text-primary)]"
     >
       {formatDisplayValue(field, value)}
     </div>
@@ -399,7 +399,7 @@ function ColumnHeaderCell({
 
   return (
     <th
-      className={`group/th relative px-3 py-2.5 border-r border-[var(--border-grid)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap select-none ${getColumnWidthClass(field.fieldType)}`}
+      className={`group/th relative px-3 py-2.5 border-r border-[var(--border-grid)] uppercase tracking-wide text-xs sm:text-[13px] font-bold text-slate-850 text-[var(--text-primary)] whitespace-nowrap select-none ${getColumnWidthClass(field.fieldType)}`}
     >
       <div className="flex items-center justify-between gap-1">
         <button
@@ -409,16 +409,16 @@ function ColumnHeaderCell({
           title="Click to sort by this column"
         >
           {getFieldIcon(field)}
-          <span className="truncate">{displayLabel}</span>
-          {field.isRequired && <span className="text-red-500 text-xs">*</span>}
+          <span className="truncate font-bold tracking-tight">{displayLabel}</span>
+          {field.isRequired && <span className="text-red-500 text-xs font-bold">*</span>}
           {activeSort?.direction === 'asc' && (
-            <ArrowUp className="w-3 h-3 text-[#E08A1E] flex-shrink-0" />
+            <ArrowUp className="w-3.5 h-3.5 text-[#E08A1E] flex-shrink-0" />
           )}
           {activeSort?.direction === 'desc' && (
-            <ArrowDown className="w-3 h-3 text-[#E08A1E] flex-shrink-0" />
+            <ArrowDown className="w-3.5 h-3.5 text-[#E08A1E] flex-shrink-0" />
           )}
           {hasFilter && (
-            <Filter className="w-3 h-3 text-[#C97814] flex-shrink-0" />
+            <Filter className="w-3.5 h-3.5 text-[#C97814] flex-shrink-0" />
           )}
         </button>
 
@@ -654,7 +654,7 @@ function BlankColumnHeader({
               }
             }}
             placeholder={`Column ${existingCount + 1}...`}
-            className="w-full min-w-[110px] h-7 px-2 rounded bg-[var(--bg-card)] text-[var(--text-primary)] text-xs font-semibold border border-[#E08A1E] focus:outline-none normal-case tracking-normal"
+            className="w-full min-w-[110px] h-7 px-2 rounded bg-[var(--bg-card)] text-[var(--text-primary)] text-xs sm:text-[13px] font-bold border border-[#E08A1E] focus:outline-none normal-case tracking-normal"
           />
 
           <button
@@ -712,7 +712,7 @@ function BlankColumnHeader({
         <button
           type="button"
           onClick={onOpen}
-          className="w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9]/70 transition-colors text-left"
+          className="w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-xs sm:text-[13px] font-bold uppercase tracking-wide text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9]/70 transition-colors text-left"
           title="Click to add a new column"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -1219,13 +1219,13 @@ function MobileEntryCard({
               </span>
             )}
             {headlineField && (
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500 truncate">
                 {displayLabels[headlineField.id]}
               </span>
             )}
           </div>
           {headlineField && (
-            <div className="text-sm font-bold text-[var(--text-primary)] truncate pt-0.5">
+            <div className="text-sm font-medium text-[var(--text-primary)] truncate pt-0.5">
               {hasHeadline
                 ? formatDisplayValue(headlineField, headlineVal)
                 : <span className="text-slate-300 font-normal">Untitled entry</span>}
@@ -1243,7 +1243,7 @@ function MobileEntryCard({
               setEditingAmount(true)
             }}
           >
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+            <p className="text-xs uppercase tracking-wide text-slate-500 font-bold">
               {displayLabels[amountField.id]}
             </p>
             {editingAmount ? (
@@ -1265,12 +1265,12 @@ function MobileEntryCard({
                     setEditingAmount(false)
                   }
                 }}
-                className="mt-0.5 w-24 h-7 px-2 text-right text-sm font-bold bg-[#FEF6E9] border border-[#E08A1E] rounded-lg focus:outline-none tabular-nums"
+                className="mt-0.5 w-24 h-7 px-2 text-right text-sm font-medium bg-[#FEF6E9] border border-[#E08A1E] rounded-lg focus:outline-none tabular-nums"
               />
             ) : (
               <div
                 title={canInlineEditAmount ? 'Tap to quick-edit value' : undefined}
-                className={`text-sm font-bold text-[var(--text-primary)] ${
+                className={`text-sm font-medium text-[var(--text-primary)] ${
                   canInlineEditAmount ? 'px-1.5 py-0.5 -mr-1.5 rounded-md hover:bg-[#FEF6E9] transition-colors' : ''
                 }`}
               >
@@ -1299,7 +1299,7 @@ function MobileEntryCard({
                   })
                 }}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 truncate">
                   {displayLabels[f.id]}
                 </p>
                 <div className="text-xs font-medium text-[var(--text-primary)] mt-0.5 truncate">
@@ -2233,8 +2233,8 @@ export default function RecordRegisterTable({
               >
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-[var(--bg-input)]/75 text-slate-600 border-b border-[var(--border-grid)] text-xs font-bold select-none">
-                      <th className="group/sel sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 w-11 text-center border-r border-[var(--border-grid)] text-slate-500 text-[11px] uppercase tracking-wider tabular-nums">
+                    <tr className="bg-[var(--bg-input)] text-slate-800 border-b border-[var(--border-grid)] text-xs sm:text-[13px] font-bold select-none">
+                      <th className="group/sel sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 w-11 text-center border-r border-[var(--border-grid)] text-slate-700 text-xs sm:text-[13px] font-bold uppercase tracking-wide tabular-nums">
                         {processedRecords.length > 0 ? (
                           <div className="flex items-center justify-center">
                             {!groupByDate && selectedIds.size === 0 && (
@@ -2360,7 +2360,7 @@ export default function RecordRegisterTable({
                                 } hover:bg-[#FEF6E9]/55`}
                               >
                                 <td
-                                  className={`sticky left-0 z-10 px-2 py-2 text-center border-r border-[var(--border-grid)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
+                                  className={`sticky left-0 z-10 px-2 py-2 text-center border-r border-[var(--border-grid)] text-xs font-medium tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
                                     isSelected
                                       ? 'bg-[#FEF6E9]'
                                       : isEven
