@@ -399,7 +399,7 @@ function ColumnHeaderCell({
 
   return (
     <th
-      className={`group/th relative px-3 py-2.5 border-r border-[var(--border-subtle)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap select-none ${getColumnWidthClass(field.fieldType)}`}
+      className={`group/th relative px-3 py-2.5 border-r border-[var(--border-grid)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap select-none ${getColumnWidthClass(field.fieldType)}`}
     >
       <div className="flex items-center justify-between gap-1">
         <button
@@ -619,7 +619,7 @@ function BlankColumnHeader({
   return (
     <th
       ref={headerRef}
-      className={`no-print px-2 py-2 border-r border-dashed border-[var(--border-subtle)] whitespace-nowrap select-none transition-all ${
+      className={`no-print px-2 py-2 border-r border-dashed border-[var(--border-grid)] whitespace-nowrap select-none transition-all ${
         isOpen ? 'min-w-[225px] bg-[#FEF6E9]/60' : 'min-w-[132px]'
       }`}
     >
@@ -862,11 +862,11 @@ function BlankEntryRow({
   return (
     <tr
       ref={rowRef}
-      className={`no-print group/blank border-b border-[var(--border-subtle)]/75 last:border-b-0 transition-colors ${
+      className={`no-print group/blank border-b border-[var(--border-grid)] last:border-b-0 transition-colors ${
         isRowActive ? 'bg-[#FEF6E9]/45' : 'bg-[var(--bg-card)]/60 hover:bg-[#FEF6E9]/40'
       }`}
     >
-      <td className="sticky left-0 z-10 px-2 py-1.5 text-center border-r border-[var(--border-subtle)] bg-[var(--bg-card)] group-hover/blank:bg-[#FEF6E9]">
+      <td className="sticky left-0 z-10 px-2 py-1.5 text-center border-r border-[var(--border-grid)] bg-[var(--bg-card)] group-hover/blank:bg-[#FEF6E9]">
         <button
           type="button"
           disabled={saving}
@@ -893,7 +893,7 @@ function BlankEntryRow({
             <td
               key={f.id}
               onClick={() => firstEditableFieldId && setActiveFieldId(firstEditableFieldId)}
-              className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
+              className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
             >
               <div className="w-full min-h-[38px] px-3 py-1.5 flex items-center text-sm">
                 {previewVal !== null && previewVal !== undefined ? (
@@ -914,7 +914,7 @@ function BlankEntryRow({
                 const next = updateDraftValue(f.id, !Boolean(draftRef.current[key]))
                 commitRow(next, true)
               }}
-              className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
+              className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle cursor-pointer ${getColumnWidthClass(f.fieldType)}`}
             >
               <div className="w-full min-h-[38px] flex items-center justify-center text-slate-300 hover:text-[#C97814]">
                 <Plus className="w-3 h-3 opacity-0 group-hover/blank:opacity-70 transition-opacity" />
@@ -926,7 +926,7 @@ function BlankEntryRow({
         return (
           <td
             key={f.id}
-            className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+            className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
           >
             {isEditingCell ? (
               f.fieldType === 'select' ? (
@@ -1029,7 +1029,7 @@ function BlankEntryRow({
       <td
         onClick={onOpenBlankColumn}
         title="Click to add a new column"
-        className="p-0 border-r border-dashed border-[var(--border-subtle)]/80 hover:bg-[#FEF6E9]/45 cursor-pointer"
+        className="p-0 border-r border-dashed border-[var(--border-grid)] hover:bg-[#FEF6E9]/45 cursor-pointer"
       >
         <div className="min-h-[38px]" />
       </td>
@@ -2233,8 +2233,8 @@ export default function RecordRegisterTable({
               >
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-[var(--bg-input)]/75 text-slate-600 border-b border-[var(--border-subtle)] text-xs font-bold select-none">
-                      <th className="group/sel sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 w-11 text-center border-r border-[var(--border-subtle)] text-slate-500 text-[11px] uppercase tracking-wider tabular-nums">
+                    <tr className="bg-[var(--bg-input)]/75 text-slate-600 border-b border-[var(--border-grid)] text-xs font-bold select-none">
+                      <th className="group/sel sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 w-11 text-center border-r border-[var(--border-grid)] text-slate-500 text-[11px] uppercase tracking-wider tabular-nums">
                         {processedRecords.length > 0 ? (
                           <div className="flex items-center justify-center">
                             {!groupByDate && selectedIds.size === 0 && (
@@ -2308,7 +2308,7 @@ export default function RecordRegisterTable({
                       return (
                         <Fragment key={group.dateKey}>
                           {groupByDate && (
-                            <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-subtle)]">
+                            <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-grid)]">
                               <td colSpan={totalGridCols} className="p-0">
                                 <div className="sticky left-0 max-w-[calc(100vw-2.25rem)] sm:max-w-full">
                                   <DateGroupBanner
@@ -2351,7 +2351,7 @@ export default function RecordRegisterTable({
                             return (
                               <tr
                                 key={rec.id}
-                                className={`group border-b border-[var(--border-subtle)] last:border-b-0 transition-colors ${
+                                className={`group border-b border-[var(--border-grid)] last:border-b-0 transition-colors ${
                                   isSelected
                                     ? 'bg-[#FEF6E9]/85'
                                     : isEven
@@ -2360,7 +2360,7 @@ export default function RecordRegisterTable({
                                 } hover:bg-[#FEF6E9]/55`}
                               >
                                 <td
-                                  className={`sticky left-0 z-10 px-2 py-2 text-center border-r border-[var(--border-subtle)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
+                                  className={`sticky left-0 z-10 px-2 py-2 text-center border-r border-[var(--border-grid)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
                                     isSelected
                                       ? 'bg-[#FEF6E9]'
                                       : isEven
@@ -2397,7 +2397,7 @@ export default function RecordRegisterTable({
                                   return (
                                     <td
                                       key={f.id}
-                                      className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+                                      className={`p-0 border-r border-[var(--border-grid)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
                                     >
                                       <EditableCell
                                         field={f}
@@ -2421,7 +2421,7 @@ export default function RecordRegisterTable({
                                 <td
                                   onClick={openQuickAddColumn}
                                   title="Click to add a new column"
-                                  className="no-print p-0 border-r border-dashed border-[var(--border-subtle)]/80 hover:bg-[#FEF6E9]/45 cursor-pointer"
+                                  className="no-print p-0 border-r border-dashed border-[var(--border-grid)] hover:bg-[#FEF6E9]/45 cursor-pointer"
                                 >
                                   <div className="min-h-[42px]" />
                                 </td>
@@ -2488,9 +2488,9 @@ export default function RecordRegisterTable({
 
                   {/* Sticky Grand Totals Footer */}
                   {processedRecords.length > 0 && (
-                    <tfoot className="sticky bottom-0 z-10 bg-[var(--bg-input)] border-t-2 border-[var(--border-subtle)] text-xs font-bold text-[var(--text-primary)]">
+                    <tfoot className="sticky bottom-0 z-10 bg-[var(--bg-input)] border-t-2 border-[var(--border-grid)] text-xs font-bold text-[var(--text-primary)]">
                       <tr>
-                        <td className="sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 text-center border-r border-[var(--border-subtle)] text-[11px] uppercase tracking-wider text-slate-500">
+                        <td className="sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 text-center border-r border-[var(--border-grid)] text-[11px] uppercase tracking-wider text-slate-500">
                           Σ
                         </td>
                         {visibleFields.map((f) => {
@@ -2508,7 +2508,7 @@ export default function RecordRegisterTable({
                             return (
                               <td
                                 key={f.id}
-                                className="px-3 py-2 border-r border-[var(--border-subtle)] whitespace-nowrap tabular-nums"
+                                className="px-3 py-2 border-r border-[var(--border-grid)] whitespace-nowrap tabular-nums"
                               >
                                 <button
                                   type="button"
@@ -2532,13 +2532,13 @@ export default function RecordRegisterTable({
                           return (
                             <td
                               key={f.id}
-                              className="px-3 py-2 border-r border-[var(--border-subtle)] whitespace-nowrap text-[11px] font-medium text-slate-400 tabular-nums"
+                              className="px-3 py-2 border-r border-[var(--border-grid)] whitespace-nowrap text-[11px] font-medium text-slate-400 tabular-nums"
                             >
                               {filledCount > 0 ? `${filledCount} filled` : '—'}
                             </td>
                           )
                         })}
-                        <td className="no-print border-r border-dashed border-[var(--border-subtle)]" />
+                        <td className="no-print border-r border-dashed border-[var(--border-grid)]" />
                         <td className="no-print px-2 py-2" />
                       </tr>
                     </tfoot>
