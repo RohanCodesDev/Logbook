@@ -5,21 +5,23 @@ import {
   CheckCircle2, Minus, Loader2, SlidersHorizontal,
   Table as TableIcon, LayoutList, IndianRupee, Hash, Calendar, Type, List, CheckSquare,
   Calculator, Sigma, ArrowUpDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
-  Filter, X, MoreVertical, AlertTriangle, FileSpreadsheet
+  Filter, X, MoreVertical, FileSpreadsheet, Eye
 } from 'lucide-react'
 import Button from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
+import ActionMenu from '../ui/ActionMenu'
+import { Dock, DockIcon, DockItem, DockLabel } from '../ui/dock'
 import SortModal from './SortModal'
 import FilterModal from './FilterModal'
 import TotalsModal from './TotalsModal'
 import {
   CURRENCY_NAME_RE,
-  FORMULA_OPERATORS,
   formatHumanDate,
   formatPlainValue,
   getEffectiveCellValue,
   getRecordDateKey,
   groupRecordsByDate,
+  isCurrencyField,
   isNumericColumn,
   buildDisplayLabels,
   resolveSortKind,
@@ -44,18 +46,17 @@ function getColumnWidthClass(fieldType) {
 }
 
 /**
- * Returns icon corresponding to column data type
+ * Returns icon corresponding to column data type or semantic currency/number name
  */
-function getFieldIcon(type) {
-  switch (type) {
-    case 'currency': return <IndianRupee className="w-3 h-3 text-emerald-600" />
-    case 'number':   return <Hash className="w-3 h-3 text-blue-600" />
-    case 'date':     return <Calendar className="w-3 h-3 text-[#E08A1E]" />
-    case 'select':   return <List className="w-3 h-3 text-purple-600" />
-    case 'checkbox': return <CheckSquare className="w-3 h-3 text-teal-600" />
-    case 'formula':  return <Calculator className="w-3 h-3 text-[#C97814]" />
-    default:         return <Type className="w-3 h-3 text-slate-400" />
-  }
+function getFieldIcon(field) {
+  if (!field) return <Type className="w-3 h-3 text-slate-400" />
+  if (field.fieldType === 'formula') return <Calculator className="w-3 h-3 text-[#C97814]" />
+  if (isCurrencyField(field)) return <IndianRupee className="w-3 h-3 text-emerald-600" />
+  if (field.fieldType === 'number') return <Hash className="w-3 h-3 text-blue-600" />
+  if (field.fieldType === 'date') return <Calendar className="w-3 h-3 text-[#E08A1E]" />
+  if (field.fieldType === 'select') return <List className="w-3 h-3 text-purple-600" />
+  if (field.fieldType === 'checkbox') return <CheckSquare className="w-3 h-3 text-teal-600" />
+  return <Type className="w-3 h-3 text-slate-400" />
 }
 
 /**
@@ -171,7 +172,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
     return (
       <div
         onClick={() => onEditFormulaColumn?.(field.id)}
-        title="Auto-calculated formula column (click to configure formula)"
+        title="Auto-calculated formula column (click to configure)"
         className="w-full min-h-[42px] px-3 py-2 flex items-center justify-between gap-2 cursor-pointer select-none text-sm bg-[#FEF6E9]/25 hover:bg-[#FEF6E9]/60 transition-colors"
       >
         {formatDisplayValue(field, value)}
@@ -229,7 +230,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
       )
     }
 
-    if (field.fieldType === 'currency') {
+    if (field.fieldType === 'currency' || (field.fieldType === 'text' && CURRENCY_NAME_RE.test(field.name))) {
       return (
         <div className="relative flex items-center w-full">
           <span className="absolute left-2 text-xs font-bold text-slate-400 pointer-events-none">₹</span>
@@ -315,294 +316,7 @@ function EditableCell({ field, value, onSave, onEditFormulaColumn }) {
 }
 
 /**
- * Quick bottom-sheet / popover to add a column (including Auto Formula & smart type inference)
- */
-function QuickAddColumnModal({ open, onClose, onAddColumn, existingFields = [] }) {
-  const [name, setName]               = useState('')
-  const [fieldType, setFieldType]     = useState('text')
-  const [typeTouched, setTypeTouched] = useState(false)
-  const [optionsText, setOptionsText] = useState('')
-  const [leftFieldId, setLeftFieldId]   = useState('')
-  const [operator, setOperator]         = useState('mul')
-  const [rightFieldId, setRightFieldId] = useState('')
-  const [formulaFormat, setFormulaFormat] = useState('currency')
-  const [error, setError]               = useState(null)
-  const [submitting, setSubmitting]     = useState(false)
-  const inputRef = useRef(null)
-
-  const formulaSources = existingFields.filter(isNumericColumn)
-
-  useEffect(() => {
-    if (open) {
-      setName('')
-      setFieldType('text')
-      setTypeTouched(false)
-      setOptionsText('')
-      setLeftFieldId(formulaSources[0] ? String(formulaSources[0].id) : '')
-      setRightFieldId(formulaSources[1] ? String(formulaSources[1].id) : '')
-      setOperator('mul')
-      setFormulaFormat('currency')
-      setError(null)
-      setTimeout(() => inputRef.current?.focus(), 60)
-    }
-  }, [open])
-
-  const handleNameChange = (val) => {
-    setName(val)
-    if (typeTouched) return
-    if (CURRENCY_NAME_RE.test(val)) {
-      setFieldType('currency')
-    } else if (/\bdate\b/i.test(val)) {
-      setFieldType('date')
-    } else if (/\b(qty|quantity|hours|hrs|days|count|bags|units)\b/i.test(val)) {
-      setFieldType('number')
-    }
-  }
-
-  if (!open) return null
-
-  const normalized = name.trim().toLowerCase()
-  const isDuplicate = Boolean(
-    normalized &&
-    existingFields.some((f) => f.name.trim().toLowerCase() === normalized)
-  )
-  const hasDateAlready = existingFields.some((f) => f.fieldType === 'date')
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!name.trim()) return
-    setError(null)
-
-    const options = fieldType === 'select'
-      ? optionsText.split(',').map((s) => s.trim()).filter(Boolean)
-      : []
-
-    if (fieldType === 'select' && options.length === 0) {
-      setError('Add at least one comma-separated option for Dropdown Choices.')
-      return
-    }
-
-    let formula = null
-    if (fieldType === 'formula') {
-      if (!leftFieldId || !rightFieldId) {
-        setError('Pick two numeric/currency columns for the formula.')
-        return
-      }
-      formula = {
-        leftFieldId: Number(leftFieldId),
-        operator,
-        rightFieldId: Number(rightFieldId),
-        format: formulaFormat,
-      }
-    }
-
-    setSubmitting(true)
-    try {
-      await onAddColumn({
-        name: name.trim(),
-        fieldType,
-        options,
-        formula,
-        isRequired: false,
-      })
-      onClose()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs"
-      onClick={onClose}
-    >
-      <div
-        className="w-full sm:max-w-sm bg-[var(--bg-card)] rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl border border-[var(--border-subtle)] space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="sm:hidden flex justify-center -mt-2">
-          <div className="w-10 h-1 rounded-full bg-[#D8D1C4]" />
-        </div>
-
-        <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
-          <h4 className="text-sm font-bold text-[var(--text-primary)]">Add New Column</h4>
-          <button type="button" onClick={onClose} className="p-1.5 -mr-1 rounded-lg text-slate-400 hover:text-slate-600">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-              Column Name *
-            </label>
-            <input
-              ref={inputRef}
-              type="text"
-              required
-              placeholder="e.g. Rate, Start Date, Total, Vendor"
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E08A1E]"
-            />
-
-            {isDuplicate && (
-              <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 flex items-start gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-600" />
-                <span>
-                  A column named <strong>"{name.trim()}"</strong> already exists. Try a clearer name like <em>Start Date</em> or <em>End Date</em>.
-                </span>
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-              Column Data Type
-            </label>
-            <select
-              value={fieldType}
-              onChange={(e) => {
-                setTypeTouched(true)
-                setFieldType(e.target.value)
-              }}
-              className="w-full px-3 py-2.5 text-sm border border-[var(--border-subtle)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E08A1E] bg-[var(--bg-card)]"
-            >
-              <option value="text">Text (Description, Machine, Name)</option>
-              <option value="currency">Currency / Rate (₹)</option>
-              <option value="number">Number / Quantity</option>
-              <option value="date">Date</option>
-              <option value="select">Dropdown Choices</option>
-              <option value="checkbox">Yes / No Checkbox</option>
-              <option value="textarea">Long Notes</option>
-              <option value="formula">Auto Formula (e.g. Qty × Rate)</option>
-            </select>
-
-            {fieldType === 'date' && hasDateAlready && !name.trim() && (
-              <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                <span className="text-[11px] text-slate-400">Suggestions:</span>
-                {['Start Date', 'End Date', 'Bill Date'].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setName(preset)}
-                    className="px-2 py-0.5 rounded-md bg-[var(--bg-input)] hover:bg-[#FEF6E9] text-slate-700 hover:text-[#C97814] text-[11px] font-medium transition-colors"
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {fieldType === 'select' && (
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                Dropdown Options (comma separated)
-              </label>
-              <input
-                type="text"
-                placeholder="Paid, Pending, Partial"
-                value={optionsText}
-                onChange={(e) => setOptionsText(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E08A1E]"
-              />
-            </div>
-          )}
-
-          {fieldType === 'formula' && (
-            <div className="p-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-subtle)] space-y-2.5">
-              {formulaSources.length < 2 ? (
-                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
-                  Add at least 2 numeric or currency columns first (e.g. Qty and Rate).
-                </p>
-              ) : (
-                <>
-                  <select
-                    value={leftFieldId}
-                    onChange={(e) => setLeftFieldId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-lg"
-                  >
-                    <option value="">First column...</option>
-                    {formulaSources.map((sf) => (
-                      <option key={sf.id} value={String(sf.id)}>{sf.name}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={operator}
-                    onChange={(e) => setOperator(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-lg"
-                  >
-                    {FORMULA_OPERATORS.map((op) => (
-                      <option key={op.value} value={op.value}>{op.label}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={rightFieldId}
-                    onChange={(e) => setRightFieldId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-[var(--border-subtle)] bg-[var(--bg-card)] rounded-lg"
-                  >
-                    <option value="">Second column...</option>
-                    {formulaSources.map((sf) => (
-                      <option key={sf.id} value={String(sf.id)}>{sf.name}</option>
-                    ))}
-                  </select>
-
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-slate-500 font-medium">Format:</span>
-                    <div className="inline-flex rounded-lg bg-[var(--bg-input)] p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setFormulaFormat('currency')}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${
-                          formulaFormat === 'currency' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs' : 'text-slate-500'
-                        }`}
-                      >
-                        Amount (₹)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFormulaFormat('number')}
-                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${
-                          formulaFormat === 'number' ? 'bg-[var(--bg-card)] text-[var(--text-primary)] shadow-xs' : 'text-slate-500'
-                        }`}
-                      >
-                        Number
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {error && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2 flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>{error}</span>
-            </p>
-          )}
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-subtle)]">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" size="sm" disabled={submitting || !name.trim()}>
-              {submitting ? 'Adding...' : 'Add Column'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-/**
- * Column Header with direct click-to-sort + Excel-style Column Menu
+ * Column Header with click-to-sort and hover-only Column Options menu (via body portal)
  */
 function ColumnHeaderCell({
   field,
@@ -682,7 +396,7 @@ function ColumnHeaderCell({
 
   return (
     <th
-      className={`relative px-2.5 py-2.5 border-r border-[var(--border-subtle)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap group select-none ${getColumnWidthClass(field.fieldType)}`}
+      className={`group/th relative px-3 py-2.5 border-r border-[var(--border-subtle)] uppercase tracking-wider text-[11px] font-bold text-slate-700 whitespace-nowrap select-none ${getColumnWidthClass(field.fieldType)}`}
     >
       <div className="flex items-center justify-between gap-1">
         <button
@@ -691,7 +405,7 @@ function ColumnHeaderCell({
           className="inline-flex items-center gap-1.5 min-w-0 hover:text-[#C97814] transition-colors text-left"
           title="Click to sort by this column"
         >
-          {getFieldIcon(field.fieldType)}
+          {getFieldIcon(field)}
           <span className="truncate">{displayLabel}</span>
           {field.isRequired && <span className="text-red-500 text-xs">*</span>}
           {activeSort?.direction === 'asc' && (
@@ -709,7 +423,9 @@ function ColumnHeaderCell({
           ref={triggerRef}
           type="button"
           onClick={openMenu}
-          className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-[#E6E1D6]/70 transition-colors flex-shrink-0"
+          className={`p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-[#E6E1D6]/70 transition-all flex-shrink-0 ${
+            menuOpen ? 'opacity-100' : 'sm:opacity-0 sm:group-hover/th:opacity-100 focus-visible:opacity-100'
+          }`}
           title="Column Options"
         >
           <MoreVertical className="w-3.5 h-3.5" />
@@ -814,12 +530,62 @@ function ColumnHeaderCell({
 }
 
 /**
- * Mobile Stacked Entry Card — clean overview of every column + computed formula values.
- * Tapping anywhere opens the Bottom Sheet form with Edit, Duplicate, and Delete.
+ * Slim left-aligned Date Group Banner:
+ * Left: "27 Nov 2026 · Fri" + TODAY pill
+ * Right: bold day subtotal ("₹78,542") + subtle "+" icon
+ */
+function DateGroupBanner({ group, onAddForDate }) {
+  const { title, relativeTag, weekday, dateKey, stats } = group
+  const primaryField = stats.summaryFields[0]
+  const primarySummary = primaryField ? stats.byField[primaryField.id] : null
+  const shortDay = weekday ? weekday.slice(0, 3) : ''
+
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-2 select-none">
+      {/* Left: Date · Day + TODAY pill */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="font-heading text-xs sm:text-sm font-bold text-[var(--text-primary)] tracking-tight truncate">
+          {title}{shortDay ? ` · ${shortDay}` : ''}
+        </span>
+        {relativeTag && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#FEF6E9] text-[#C97814] border border-[#FDE68A] flex-shrink-0">
+            {relativeTag}
+          </span>
+        )}
+      </div>
+
+      {/* Right: Bold day total + subtle "+" icon */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {primarySummary && (
+          <span className="text-xs sm:text-sm font-bold text-[var(--text-primary)] tabular-nums">
+            {primarySummary.isCurrency
+              ? `₹${primarySummary.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+              : primarySummary.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+          </span>
+        )}
+        {onAddForDate && (
+          <button
+            type="button"
+            onClick={() => onAddForDate(dateKey)}
+            className="p-1 rounded-lg text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
+            title={`Add entry for ${title}`}
+            aria-label={`Add entry for ${title}`}
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Mobile Stacked Entry Card — shows visible columns cleanly without repeating the group date.
  */
 function MobileEntryCard({
   record,
   index,
+  showSerial,
   fields,
   displayLabels,
   onEdit,
@@ -831,8 +597,7 @@ function MobileEntryCard({
 
   const amountField =
     fields.find((f) => f.id !== headlineField?.id && f.fieldType === 'formula' && f.formula?.format === 'currency') ||
-    fields.find((f) => f.id !== headlineField?.id && f.fieldType === 'currency') ||
-    fields.find((f) => f.id !== headlineField?.id && CURRENCY_NAME_RE.test(f.name)) ||
+    fields.find((f) => f.id !== headlineField?.id && isCurrencyField(f)) ||
     fields.find((f) => f.id !== headlineField?.id && f.fieldType === 'number')
 
   const remainingFields = fields.filter(
@@ -853,15 +618,16 @@ function MobileEntryCard({
           onEdit(record)
         }
       }}
-      className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-subtle)] p-4 shadow-xs active:scale-[0.99] transition-all cursor-pointer space-y-3"
+      className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-subtle)] p-3.5 shadow-xs active:scale-[0.99] transition-all cursor-pointer space-y-2.5"
     >
-      {/* Card Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-0.5">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-[var(--bg-input)] text-slate-600 text-[10px] font-bold tabular-nums uppercase">
-              SL {String(index + 1).padStart(2, '0')}
-            </span>
+            {showSerial && (
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded bg-[var(--bg-input)] text-slate-600 text-[10px] font-bold tabular-nums uppercase">
+                SL {String(index + 1).padStart(2, '0')}
+              </span>
+            )}
             {headlineField && (
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">
                 {displayLabels[headlineField.id]}
@@ -889,9 +655,8 @@ function MobileEntryCard({
         )}
       </div>
 
-      {/* Remaining Fields Grid */}
       {remainingFields.length > 0 && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-3 border-t border-[var(--border-subtle)]">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2.5 border-t border-[var(--border-subtle)]">
           {remainingFields.map((f) => (
             <div key={f.id} className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
@@ -909,99 +674,7 @@ function MobileEntryCard({
 }
 
 /**
- * Center-aligned Date Header & Subheader for each day's entries.
- */
-function DateGroupBanner({ group, onAddForDate }) {
-  const { title, relativeTag, weekday, dateKey, records, stats } = group
-  const primaryField = stats.summaryFields[0]
-  const primarySummary = primaryField ? stats.byField[primaryField.id] : null
-
-  return (
-    <div className="flex flex-col items-center justify-center text-center py-2.5 px-4 select-none">
-      {/* Centered Date Header */}
-      <div className="inline-flex items-center justify-center gap-2">
-        <Calendar className="w-3.5 h-3.5 text-[#E08A1E]" />
-        <h4 className="font-heading text-sm sm:text-base font-bold text-[var(--text-primary)] tracking-tight">
-          {title}
-        </h4>
-        {relativeTag && (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#FEF6E9] text-[#C97814] border border-[#FDE68A]">
-            {relativeTag}
-          </span>
-        )}
-      </div>
-
-      {/* Centered Date Subheader */}
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] font-medium text-slate-500">
-        {weekday && <span>{weekday}</span>}
-        {weekday && <span className="text-slate-300">•</span>}
-        <span className="tabular-nums">
-          {records.length} {records.length === 1 ? 'entry' : 'entries'}
-        </span>
-        {primarySummary && (
-          <>
-            <span className="text-slate-300">•</span>
-            <span className="tabular-nums font-semibold text-[var(--text-primary)]">
-              {primaryField.name}:{' '}
-              {primarySummary.isCurrency
-                ? `₹${primarySummary.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-                : primarySummary.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-            </span>
-          </>
-        )}
-        {onAddForDate && (
-          <>
-            <span className="text-slate-300">•</span>
-            <button
-              type="button"
-              onClick={() => onAddForDate(dateKey)}
-              className="inline-flex items-center gap-0.5 font-semibold text-[#C97814] hover:text-[#E08A1E] transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              <span>Add</span>
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/**
- * Fingertip Action Pill Button inside the quick command strip
- */
-function QuickActionPill({ icon: Icon, label, active = false, badge = null, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
-        active
-          ? 'bg-[#1E242B] text-white border-[#1E242B] shadow-xs'
-          : 'bg-[var(--bg-canvas)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:bg-[var(--bg-input)]'
-      }`}
-    >
-      <Icon className={`w-3.5 h-3.5 ${active ? 'text-[#F2A649]' : 'text-[#C97814]'}`} />
-      <span>{label}</span>
-      {badge !== null && (
-        <span
-          className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none tabular-nums ${
-            active ? 'bg-[#E08A1E] text-white' : 'bg-[var(--bg-input)] text-slate-600'
-          }`}
-        >
-          {badge}
-        </span>
-      )}
-    </button>
-  )
-}
-
-/**
- * RecordRegisterTable — Simplified Excel Workspace for Mobile & Desktop:
- * - Fingertip Action Strip: + Column, Columns (Reorder/Edit/Formulas), Sort, Filter, Totals, Cards/Grid, Export
- * - Multi-kind & multi-level column sorting + per-column filtering
- * - Mobile Cards default on < 640px (toggleable to Grid anytime), Excel Grid default on >= 640px
- * - Live Auto Formula calculations, inline cell editing, 1-tap Duplicate & CSV Export
+ * RecordRegisterTable — Single-row Dock toolbar + quiet Excel Grid / Mobile Cards.
  */
 export default function RecordRegisterTable({
   section,
@@ -1012,7 +685,6 @@ export default function RecordRegisterTable({
   onDuplicateRecord,
   onInlineUpdateRecord,
   onDeleteRecord,
-  onAddColumn,
   onDeleteField,
   onReorderFields,
   onCustomizeFields,
@@ -1024,26 +696,43 @@ export default function RecordRegisterTable({
   const [sortLevels, setSortLevels]         = useState([])
   const [columnFilters, setColumnFilters]   = useState([])
   const [groupByDate, setGroupByDate]       = useState(true)
-  const [viewModeOverride, setViewModeOverride] = useState(null) // null -> auto ('cards' < 640px, 'grid' >= 640px)
+  const [viewModeOverride, setViewModeOverride] = useState(null)
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   )
 
-  const [addColumnOpen, setAddColumnOpen]   = useState(false)
-  const [sortModalOpen, setSortModalOpen]   = useState(false)
-  const [sortSeedFieldId, setSortSeedFieldId] = useState(null)
-  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [sortModalOpen, setSortModalOpen]       = useState(false)
+  const [sortSeedFieldId, setSortSeedFieldId]   = useState(null)
+  const [filterModalOpen, setFilterModalOpen]   = useState(false)
   const [filterSeedFieldId, setFilterSeedFieldId] = useState(null)
-  const [totalsModalOpen, setTotalsModalOpen] = useState(false)
+  const [totalsModalOpen, setTotalsModalOpen]   = useState(false)
+
+  // Floating Dock dropdowns (View & More ⋮) rendered cleanly in portals
+  const [viewMenuOpen, setViewMenuOpen]     = useState(false)
+  const [viewMenuPos, setViewMenuPos]       = useState({ top: 0, left: 0 })
   const [sheetMenuOpen, setSheetMenuOpen]   = useState(false)
+  const [sheetMenuPos, setSheetMenuPos]     = useState({ top: 0, left: 0 })
   const [canScrollRight, setCanScrollRight] = useState(false)
 
+  const viewTriggerRef = useRef(null)
+  const viewMenuRef = useRef(null)
+  const sheetTriggerRef = useRef(null)
   const sheetMenuRef = useRef(null)
   const tableScrollRef = useRef(null)
-  const fields = section?.fields || []
 
+  const fields = section?.fields || []
   const effectiveView = viewModeOverride || (isMobileViewport ? 'cards' : 'grid')
   const displayLabels = useMemo(() => buildDisplayLabels(fields), [fields])
+
+  // Auto-hide redundant Date column when By Date grouping is active
+  const soleDateCol = fields.filter((f) => f.fieldType === 'date').length === 1
+  const visibleFields = useMemo(
+    () =>
+      groupByDate
+        ? fields.filter((f) => !(f.fieldType === 'date' && (/^date$/i.test(f.name.trim()) || soleDateCol)))
+        : fields,
+    [fields, groupByDate, soleDateCol]
+  )
 
   useEffect(() => {
     const onResize = () => setIsMobileViewport(window.innerWidth < 640)
@@ -1051,26 +740,45 @@ export default function RecordRegisterTable({
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Close sheet menu on outside click
+  // Close portal menus cleanly on outside click / Escape
   useEffect(() => {
-    if (!sheetMenuOpen) return
-    const close = (e) => {
-      if (sheetMenuRef.current && !sheetMenuRef.current.contains(e.target)) {
+    if (!viewMenuOpen && !sheetMenuOpen) return
+    const handleOutside = (e) => {
+      if (
+        viewMenuOpen &&
+        !viewTriggerRef.current?.contains(e.target) &&
+        !viewMenuRef.current?.contains(e.target)
+      ) {
+        setViewMenuOpen(false)
+      }
+      if (
+        sheetMenuOpen &&
+        !sheetTriggerRef.current?.contains(e.target) &&
+        !sheetMenuRef.current?.contains(e.target)
+      ) {
         setSheetMenuOpen(false)
       }
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [sheetMenuOpen])
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        setViewMenuOpen(false)
+        setSheetMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [viewMenuOpen, sheetMenuOpen])
 
-  // Reset per-sheet local view controls when switching sheets
   useEffect(() => {
     setSearch('')
     setSortLevels([])
     setColumnFilters([])
   }, [section?.id])
 
-  // Apply Filter -> Sort pipeline
   const processedRecords = useMemo(() => {
     const filtered = filterRecords(records, search, columnFilters, fields)
     return sortRecords(filtered, sortLevels, fields)
@@ -1089,7 +797,6 @@ export default function RecordRegisterTable({
     [processedRecords, fields]
   )
 
-  // Check horizontal overflow to toggle subtle right-edge fade hint on grid table
   const checkTableScroll = useCallback(() => {
     const el = tableScrollRef.current
     if (!el) {
@@ -1103,7 +810,21 @@ export default function RecordRegisterTable({
     checkTableScroll()
     window.addEventListener('resize', checkTableScroll)
     return () => window.removeEventListener('resize', checkTableScroll)
-  }, [checkTableScroll, fields.length, processedRecords.length, effectiveView])
+  }, [checkTableScroll, visibleFields.length, processedRecords.length, effectiveView])
+
+  const openPortalMenu = (ref, setPos, setOpen, currentlyOpen, width) => {
+    if (currentlyOpen) {
+      setOpen(false)
+      return
+    }
+    const rect = ref.current?.getBoundingClientRect()
+    if (rect) {
+      const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+      const top = Math.min(rect.bottom + 8, window.innerHeight - 230)
+      setPos({ top: Math.max(8, top), left })
+    }
+    setOpen(true)
+  }
 
   const handleCellChange = (record, fieldId, nextVal) => {
     const updatedData = {
@@ -1130,25 +851,31 @@ export default function RecordRegisterTable({
     })
   }
 
-  const handleMoveField = async (index, delta) => {
+  const handleMoveField = async (visibleIdx, delta) => {
     if (!onReorderFields) return
-    const targetIdx = index + delta
-    if (targetIdx < 0 || targetIdx >= fields.length) return
+    const targetField = visibleFields[visibleIdx]
+    const swapField = visibleFields[visibleIdx + delta]
+    if (!targetField || !swapField) return
+
+    const idxA = fields.findIndex((f) => f.id === targetField.id)
+    const idxB = fields.findIndex((f) => f.id === swapField.id)
+    if (idxA === -1 || idxB === -1) return
+
     const ordered = [...fields]
-    const [moved] = ordered.splice(index, 1)
-    ordered.splice(targetIdx, 0, moved)
+    const tmp = ordered[idxA]
+    ordered[idxA] = ordered[idxB]
+    ordered[idxB] = tmp
     await onReorderFields(ordered.map((f) => f.id))
   }
 
   const handleExportCsv = () => {
     if (!fields.length || !processedRecords.length) return
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const header = ['Entry Date', 'SL', ...fields.map((f) => esc(displayLabels[f.id]))].join(',')
-    const rows = processedRecords.map((rec, idx) =>
+    const header = ['Entry Date', ...visibleFields.map((f) => esc(displayLabels[f.id]))].join(',')
+    const rows = processedRecords.map((rec) =>
       [
         esc(formatHumanDate(getRecordDateKey(rec, fields))),
-        idx + 1,
-        ...fields.map((f) => esc(formatPlainValue(f, getEffectiveCellValue(f, rec.data, fields)))),
+        ...visibleFields.map((f) => esc(formatPlainValue(f, getEffectiveCellValue(f, rec.data, fields)))),
       ].join(',')
     )
     const csv = [header, ...rows].join('\n')
@@ -1161,25 +888,12 @@ export default function RecordRegisterTable({
     URL.revokeObjectURL(url)
   }
 
-  const getSortSummaryLabel = () => {
-    if (!sortLevels.length) return 'Sort'
-    const first = sortLevels[0]
-    const f = fields.find((x) => String(x.id) === String(first.key))
-    const name = f
-      ? (displayLabels[f.id] || f.name)
-      : first.key === '__entryDate'
-        ? 'Entry Date'
-        : first.key === '__updatedAt'
-          ? 'Updated'
-          : 'Created'
-    return `${name} ${first.direction === 'desc' ? '↓' : '↑'}`
-  }
-
   const hasActiveControls = sortLevels.length > 0 || columnFilters.length > 0 || Boolean(search.trim())
+  const totalGridCols = visibleFields.length + (groupByDate ? 0 : 1) + 1 // optional SL + visibleFields + Actions
 
   return (
     <div className="relative">
-      {/* ─── Sheet Top Bar (Search + Primary CTA + Sheet Options ⋮) ──── */}
+      {/* ─── Single Clean Toolbar Row (Search Left + Dock Toolbar Right) ─── */}
       <div className="flex items-center justify-between gap-2.5 px-4 sm:px-6 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-card)]">
         {fields.length > 0 && records.length > 0 ? (
           <div className="relative flex items-center flex-1 sm:max-w-xs min-w-0">
@@ -1206,175 +920,222 @@ export default function RecordRegisterTable({
           <div className="flex items-center gap-2 min-w-0">
             <FileSpreadsheet className="w-4 h-4 text-[#E08A1E] flex-shrink-0" />
             <span className="text-sm font-bold text-[var(--text-primary)] truncate">{section.name}</span>
-            <span className="text-xs text-slate-400 font-medium flex-shrink-0">
-              {fields.length} {fields.length === 1 ? 'col' : 'cols'}
-            </span>
           </div>
         )}
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {fields.length > 0 && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-input)]/80 border border-[var(--border-subtle)] text-[11px] font-semibold text-slate-600 tabular-nums">
-              <span>
-                {processedRecords.length}
-                {processedRecords.length !== records.length ? `/${records.length}` : ''}{' '}
-                {processedRecords.length === 1 ? 'entry' : 'entries'}
-              </span>
-              <span className="hidden sm:inline text-slate-300">•</span>
-              <span className="hidden sm:inline text-[#C97814]">
-                {fields.length} {fields.length === 1 ? 'col' : 'cols'}
-              </span>
-            </span>
-          )}
-
-          {fields.length > 0 ? (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => onAddEntry()}
-              className="hidden sm:inline-flex"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Entry</span>
-            </Button>
-          ) : (
-            <Button variant="primary" size="sm" onClick={() => setAddColumnOpen(true)}>
-              <Plus className="w-4 h-4" />
-              <span>Add Column</span>
-            </Button>
-          )}
-
-          {/* Sheet Actions Menu (⋮) */}
-          <div ref={sheetMenuRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setSheetMenuOpen((prev) => !prev)}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] text-slate-600 hover:bg-[var(--bg-input)] hover:text-[var(--text-primary)] transition-colors"
-              aria-label="Sheet options"
-              title="Sheet options"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-
-            {sheetMenuOpen && (
-              <div
-                className="absolute right-0 top-full mt-1.5 w-48 bg-[var(--bg-card)] rounded-xl shadow-xl border border-[var(--border-subtle)] py-1.5 z-50"
-                onClick={() => setSheetMenuOpen(false)}
-              >
-                <button
-                  type="button"
-                  onClick={() => setAddColumnOpen(true)}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+        {/* Right: Apple-style Framer Motion Dock Toolbar */}
+        <div className="flex-shrink-0">
+          <Dock>
+            {fields.length > 0 && (
+              <>
+                {/* Filter */}
+                <DockItem
+                  ariaLabel="Filter entries"
+                  onClick={() => {
+                    setFilterSeedFieldId(null)
+                    setFilterModalOpen(true)
+                  }}
+                  className={
+                    columnFilters.length > 0
+                      ? 'bg-[#1E242B] text-[#F2A649]'
+                      : 'bg-[var(--bg-card)] text-slate-600 hover:text-[var(--text-primary)]'
+                  }
                 >
-                  <Plus className="w-3.5 h-3.5 text-[#E08A1E]" />
-                  <span>Add Column</span>
-                </button>
+                  <DockLabel>
+                    {columnFilters.length > 0 ? `Filter (${columnFilters.length})` : 'Filter'}
+                  </DockLabel>
+                  <DockIcon>
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <Filter className="w-full h-full" />
+                      {columnFilters.length > 0 && (
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#E08A1E]" />
+                      )}
+                    </div>
+                  </DockIcon>
+                </DockItem>
 
-                <button
-                  type="button"
-                  onClick={() => onCustomizeFields(null)}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Manage Columns</span>
-                </button>
-
-                {processedRecords.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleExportCsv}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+                {/* View Menu (By Date + Card/Grid + Sort) */}
+                <span ref={viewTriggerRef} className="inline-flex">
+                  <DockItem
+                    ariaLabel="View options"
+                    onClick={() => {
+                      setSheetMenuOpen(false)
+                      openPortalMenu(viewTriggerRef, setViewMenuPos, setViewMenuOpen, viewMenuOpen, 208)
+                    }}
+                    className={
+                      viewMenuOpen
+                        ? 'bg-[#1E242B] text-white'
+                        : 'bg-[var(--bg-card)] text-slate-600 hover:text-[var(--text-primary)]'
+                    }
                   >
-                    <Download className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Export CSV</span>
-                  </button>
-                )}
-
-                <div className="my-1 border-t border-[var(--border-subtle)]" />
-
-                <button
-                  type="button"
-                  onClick={() => onEditSection(section)}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
-                >
-                  <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Rename Sheet</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onDeleteSection(section)}
-                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Sheet</span>
-                </button>
-              </div>
+                    <DockLabel>View</DockLabel>
+                    <DockIcon>
+                      <Eye className="w-full h-full" />
+                    </DockIcon>
+                  </DockItem>
+                </span>
+              </>
             )}
-          </div>
+
+            {/* + Add Entry (or + Column if 0 columns) */}
+            <DockItem
+              ariaLabel={fields.length > 0 ? 'Add entry' : 'Add column'}
+              onClick={() => (fields.length > 0 ? onAddEntry() : onCustomizeFields(null))}
+              className="bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-hover)] shadow-xs"
+            >
+              <DockLabel>{fields.length > 0 ? 'Add Entry' : 'Add Column'}</DockLabel>
+              <DockIcon>
+                <Plus className="w-full h-full stroke-[2.4]" />
+              </DockIcon>
+            </DockItem>
+
+            {/* More (⋮) -> Columns, Totals, Export CSV, Rename, Delete */}
+            <span ref={sheetTriggerRef} className="inline-flex">
+              <DockItem
+                ariaLabel="Sheet options"
+                onClick={() => {
+                  setViewMenuOpen(false)
+                  openPortalMenu(sheetTriggerRef, setSheetMenuPos, setSheetMenuOpen, sheetMenuOpen, 196)
+                }}
+                className={
+                  sheetMenuOpen
+                    ? 'bg-[#1E242B] text-white'
+                    : 'bg-[var(--bg-card)] text-slate-600 hover:text-[var(--text-primary)]'
+                }
+              >
+                <DockLabel>More</DockLabel>
+                <DockIcon>
+                  <MoreVertical className="w-full h-full" />
+                </DockIcon>
+              </DockItem>
+            </span>
+          </Dock>
         </div>
       </div>
 
-      {/* ─── Fingertip Quick Action Strip (Scrollable on Phones) ────── */}
-      {fields.length > 0 && (
-        <div className="flex items-center gap-2 px-4 sm:px-6 py-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-x-auto no-scrollbar">
-          <QuickActionPill
-            icon={Plus}
-            label="Column"
-            onClick={() => setAddColumnOpen(true)}
-          />
-          <QuickActionPill
-            icon={SlidersHorizontal}
-            label="Manage Columns"
-            badge={fields.length}
-            onClick={() => onCustomizeFields(null)}
-          />
-          <QuickActionPill
-            icon={ArrowUpDown}
-            label={getSortSummaryLabel()}
-            active={sortLevels.length > 0}
+      {/* View Dropdown Portal */}
+      {viewMenuOpen && createPortal(
+        <div
+          ref={viewMenuRef}
+          style={{ top: viewMenuPos.top, left: viewMenuPos.left }}
+          className="fixed w-52 bg-[var(--bg-card)] rounded-xl shadow-2xl border border-[var(--border-subtle)] py-1.5 z-[9999]"
+        >
+          <button
+            type="button"
+            onClick={() => setGroupByDate((prev) => !prev)}
+            className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-[#E08A1E]" />
+              <span>Group by Date</span>
+            </span>
+            <span
+              className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${
+                groupByDate ? 'bg-[#E08A1E] justify-end' : 'bg-slate-300 justify-start'
+              }`}
+            >
+              <span className="w-3 h-3 rounded-full bg-white shadow-xs" />
+            </span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
+              setViewModeOverride(effectiveView === 'cards' ? 'grid' : 'cards')
+              setViewMenuOpen(false)
+            }}
+            className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          >
+            <span className="inline-flex items-center gap-2">
+              {effectiveView === 'cards'
+                ? <TableIcon className="w-3.5 h-3.5 text-slate-500" />
+                : <LayoutList className="w-3.5 h-3.5 text-slate-500" />
+              }
+              <span>{effectiveView === 'cards' ? 'Switch to Grid View' : 'Switch to Card View'}</span>
+            </span>
+          </button>
+
+          <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setViewMenuOpen(false)
               setSortSeedFieldId(null)
               setSortModalOpen(true)
             }}
-          />
-          <QuickActionPill
-            icon={Filter}
-            label="Filter"
-            active={columnFilters.length > 0}
-            badge={columnFilters.length > 0 ? columnFilters.length : null}
-            onClick={() => {
-              setFilterSeedFieldId(null)
-              setFilterModalOpen(true)
-            }}
-          />
-          <QuickActionPill
-            icon={Sigma}
-            label="Totals"
-            onClick={() => setTotalsModalOpen(true)}
-          />
-          <QuickActionPill
-            icon={Calendar}
-            label="By Date"
-            active={groupByDate}
-            onClick={() => setGroupByDate((prev) => !prev)}
-          />
-          <QuickActionPill
-            icon={effectiveView === 'cards' ? TableIcon : LayoutList}
-            label={effectiveView === 'cards' ? 'Grid View' : 'Card View'}
-            onClick={() => setViewModeOverride(effectiveView === 'cards' ? 'grid' : 'cards')}
-          />
-          {processedRecords.length > 0 && (
-            <QuickActionPill
-              icon={Download}
-              label="Export CSV"
-              onClick={handleExportCsv}
-            />
-          )}
-        </div>
+            className="w-full flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+            <span>Sort Options...</span>
+          </button>
+        </div>,
+        document.body
       )}
 
-      {/* ─── Active Sort & Filter Summary Strip ─────────────────────── */}
+      {/* More (⋮) Sheet Menu Portal */}
+      {sheetMenuOpen && createPortal(
+        <div
+          ref={sheetMenuRef}
+          style={{ top: sheetMenuPos.top, left: sheetMenuPos.left }}
+          className="fixed w-48 bg-[var(--bg-card)] rounded-xl shadow-2xl border border-[var(--border-subtle)] py-1.5 z-[9999]"
+          onClick={() => setSheetMenuOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => onCustomizeFields(null)}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#E08A1E]" />
+            <span>Columns</span>
+          </button>
+
+          {fields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTotalsModalOpen(true)}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+            >
+              <Sigma className="w-3.5 h-3.5 text-slate-400" />
+              <span>Totals & Averages</span>
+            </button>
+          )}
+
+          {processedRecords.length > 0 && (
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-400" />
+              <span>Export CSV</span>
+            </button>
+          )}
+
+          <div className="my-1 border-t border-[var(--border-subtle)]" />
+
+          <button
+            type="button"
+            onClick={() => onEditSection(section)}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-[var(--bg-input)]"
+          >
+            <Pencil className="w-3.5 h-3.5 text-slate-400" />
+            <span>Rename Sheet</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDeleteSection(section)}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete Sheet</span>
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── Active Sort & Filter Summary Pills ─────────────────────── */}
       {hasActiveControls && records.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-4 sm:px-6 py-2 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] text-xs">
           {sortLevels.map((lvl, idx) => {
@@ -1453,11 +1214,11 @@ export default function RecordRegisterTable({
         <EmptyState
           icon={TableIcon}
           title={`No columns in ${section.name} yet`}
-          description="Add your first column (such as Item, Date, Qty, Rate, or Total) to start logging entries."
+          description="Add your first column (such as Item, Qty, Rate, or Total) to start logging entries."
           action={
-            <Button variant="primary" onClick={() => setAddColumnOpen(true)}>
+            <Button variant="primary" onClick={() => onCustomizeFields(null)}>
               <Plus className="w-4 h-4" />
-              Add First Column
+              Add Columns
             </Button>
           }
         />
@@ -1500,22 +1261,22 @@ export default function RecordRegisterTable({
         <>
           {effectiveView === 'cards' ? (
             /* ─── Mobile / Card View ─────────────────────────────────── */
-            <div className="p-3.5 sm:p-5 space-y-5 bg-[var(--bg-canvas)]/70">
+            <div className="p-3.5 sm:p-5 space-y-4 bg-[var(--bg-canvas)]/70">
               {groupByDate ? (
                 dateGroups.map((group) => (
-                  <section key={group.dateKey} className="space-y-3">
-                    {/* Centered Date Header & Subheader */}
-                    <div className="border-b border-[var(--border-subtle)] pb-1">
+                  <section key={group.dateKey} className="space-y-2.5">
+                    <div className="rounded-xl bg-[var(--bg-input)]/70 border border-[var(--border-subtle)]">
                       <DateGroupBanner group={group} onAddForDate={onAddEntry} />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {group.records.map((rec, idx) => (
                         <MobileEntryCard
                           key={rec.id}
                           record={rec}
                           index={idx}
-                          fields={fields}
+                          showSerial={false}
+                          fields={visibleFields}
                           displayLabels={displayLabels}
                           onEdit={onEditEntry}
                         />
@@ -1524,13 +1285,14 @@ export default function RecordRegisterTable({
                   </section>
                 ))
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {processedRecords.map((rec, idx) => (
                     <MobileEntryCard
                       key={rec.id}
                       record={rec}
                       index={idx}
-                      fields={fields}
+                      showSerial={true}
+                      fields={visibleFields}
                       displayLabels={displayLabels}
                       onEdit={onEditEntry}
                     />
@@ -1538,7 +1300,7 @@ export default function RecordRegisterTable({
                 </div>
               )}
 
-              {/* Quick Totals bar in Card View when numeric columns exist */}
+              {/* Default Totals summary strip when numeric/currency columns exist */}
               {summaryFields.length > 0 && (
                 <button
                   type="button"
@@ -1550,7 +1312,7 @@ export default function RecordRegisterTable({
                     if (!s) return null
                     return (
                       <span key={f.id} className="tabular-nums">
-                        {displayLabels[f.id]}:{' '}
+                        Total {displayLabels[f.id]}:{' '}
                         <strong className="text-[var(--text-primary)] font-semibold">
                           {s.isCurrency
                             ? `₹${s.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
@@ -1563,93 +1325,105 @@ export default function RecordRegisterTable({
               )}
             </div>
           ) : (
-            /* ─── Excel Spreadsheet Grid View ────────────────────────── */
+            /* ─── Quiet Excel Spreadsheet Grid View ──────────────────── */
             <div className="relative">
               <div
                 ref={tableScrollRef}
                 onScroll={checkTableScroll}
                 className="overflow-x-auto"
               >
-                  <table className="w-full text-left border-collapse border-b border-[var(--border-subtle)]">
-                    <thead>
-                      <tr className="bg-[var(--bg-input)]/80 text-slate-600 border-b border-[var(--border-subtle)] text-xs font-bold select-none">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[var(--bg-input)]/75 text-slate-600 border-b border-[var(--border-subtle)] text-xs font-bold select-none">
+                      {!groupByDate && (
                         <th className="sticky left-0 z-20 bg-[var(--bg-input)] px-3 py-2.5 w-12 text-center border-r border-[var(--border-subtle)] text-slate-500 text-[11px] uppercase tracking-wider tabular-nums">
                           SL
                         </th>
+                      )}
 
-                        {fields.map((f, idx) => {
-                          const activeSort = sortLevels[0] && String(sortLevels[0].key) === String(f.id)
-                            ? sortLevels[0]
-                            : null
-                          const hasFilter = columnFilters.some((r) => String(r.fieldId) === String(f.id))
+                      {visibleFields.map((f, idx) => {
+                        const activeSort = sortLevels[0] && String(sortLevels[0].key) === String(f.id)
+                          ? sortLevels[0]
+                          : null
+                        const hasFilter = columnFilters.some((r) => String(r.fieldId) === String(f.id))
+                        return (
+                          <ColumnHeaderCell
+                            key={f.id}
+                            field={f}
+                            index={idx}
+                            totalCount={visibleFields.length}
+                            displayLabel={displayLabels[f.id]}
+                            activeSort={activeSort}
+                            hasFilter={hasFilter}
+                            onQuickSort={handleQuickSort}
+                            onOpenSortModal={(fid) => {
+                              setSortSeedFieldId(fid)
+                              setSortModalOpen(true)
+                            }}
+                            onOpenFilterForColumn={(fid) => {
+                              setFilterSeedFieldId(fid)
+                              setFilterModalOpen(true)
+                            }}
+                            onEditField={(fid) => onCustomizeFields(fid)}
+                            onMoveField={handleMoveField}
+                            onDeleteField={onDeleteField}
+                          />
+                        )
+                      })}
+
+                      <th className="px-2 py-2.5 w-20 sm:w-24 text-right text-[11px] uppercase tracking-wider text-slate-400" />
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {(groupByDate
+                      ? dateGroups
+                      : [{ dateKey: '__all', records: processedRecords }]
+                    ).map((group) => (
+                      <Fragment key={group.dateKey}>
+                        {groupByDate && (
+                          <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-subtle)]">
+                            <td colSpan={totalGridCols} className="p-0">
+                              <div className="sticky left-0 max-w-[calc(100vw-2.25rem)] sm:max-w-full">
+                                <DateGroupBanner group={group} onAddForDate={onAddEntry} />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {group.records.map((rec, idx) => {
+                          const isDeleting = deletingRecordId === rec.id
+                          const isEven = idx % 2 === 1
+                          const mobileActions = [
+                            ...(onDuplicateRecord
+                              ? [{
+                                  label: 'Duplicate',
+                                  icon: Copy,
+                                  onClick: () => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields)),
+                                }]
+                              : []),
+                            {
+                              label: 'Edit Entry',
+                              icon: Pencil,
+                              onClick: () => onEditEntry(rec),
+                            },
+                            {
+                              label: isDeleting ? 'Deleting...' : 'Delete',
+                              icon: isDeleting ? Loader2 : Trash2,
+                              danger: true,
+                              dividerBefore: true,
+                              disabled: isDeleting,
+                              onClick: () => onDeleteRecord(rec),
+                            },
+                          ]
+
                           return (
-                            <ColumnHeaderCell
-                              key={f.id}
-                              field={f}
-                              index={idx}
-                              totalCount={fields.length}
-                              displayLabel={displayLabels[f.id]}
-                              activeSort={activeSort}
-                              hasFilter={hasFilter}
-                              onQuickSort={handleQuickSort}
-                              onOpenSortModal={(fid) => {
-                                setSortSeedFieldId(fid)
-                                setSortModalOpen(true)
-                              }}
-                              onOpenFilterForColumn={(fid) => {
-                                setFilterSeedFieldId(fid)
-                                setFilterModalOpen(true)
-                              }}
-                              onEditField={(fid) => onCustomizeFields(fid)}
-                              onMoveField={handleMoveField}
-                              onDeleteField={onDeleteField}
-                            />
-                          )
-                        })}
-
-                        <th className="px-3 py-2.5 text-left border-r border-[var(--border-subtle)] whitespace-nowrap bg-[var(--bg-input)]/60">
-                          <button
-                            type="button"
-                            onClick={() => setAddColumnOpen(true)}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-[#C97814] hover:bg-[#FEF6E9] px-2 py-1 rounded transition-colors"
-                            title="Add another column"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Column</span>
-                          </button>
-                        </th>
-
-                        <th className="px-3 py-2.5 w-24 text-center text-[11px] uppercase tracking-wider text-slate-500">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {(groupByDate
-                        ? dateGroups
-                        : [{ dateKey: '__all', records: processedRecords }]
-                      ).map((group) => (
-                        <Fragment key={group.dateKey}>
-                          {groupByDate && (
-                            <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-subtle)]">
-                              <td colSpan={fields.length + 3} className="p-0">
-                                <div className="sticky left-0 max-w-[calc(100vw-2.25rem)] sm:max-w-full">
-                                  <DateGroupBanner group={group} onAddForDate={onAddEntry} />
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          {group.records.map((rec, idx) => {
-                            const isDeleting = deletingRecordId === rec.id
-                            const isEven = idx % 2 === 1
-                            return (
-                              <tr
-                                key={rec.id}
-                                className={`group border-b border-[var(--border-subtle)] transition-colors ${
-                                  isEven ? 'bg-[#F6F4EF]/55' : 'bg-[var(--bg-card)]'
-                                } hover:bg-[#FEF6E9]/60`}
-                              >
+                            <tr
+                              key={rec.id}
+                              className={`group border-b border-[var(--border-subtle)] last:border-b-0 transition-colors ${
+                                isEven ? 'bg-[#F6F4EF]/50' : 'bg-[var(--bg-card)]'
+                              } hover:bg-[#FEF6E9]/55`}
+                            >
+                              {!groupByDate && (
                                 <td
                                   className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-[var(--border-subtle)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
                                     isEven ? 'bg-[#F6F4EF]' : 'bg-[var(--bg-card)]'
@@ -1657,68 +1431,70 @@ export default function RecordRegisterTable({
                                 >
                                   {String(idx + 1).padStart(2, '0')}
                                 </td>
+                              )}
 
-                                {fields.map((f) => (
-                                  <td
-                                    key={f.id}
-                                    className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+                              {visibleFields.map((f) => (
+                                <td
+                                  key={f.id}
+                                  className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
+                                >
+                                  <EditableCell
+                                    field={f}
+                                    value={getEffectiveCellValue(f, rec.data, fields)}
+                                    onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
+                                    onEditFormulaColumn={(fid) => onCustomizeFields(fid)}
+                                  />
+                                </td>
+                              ))}
+
+                              {/* Quiet row actions: hover-only on desktop, single ⋮ on mobile */}
+                              <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                                <div className="hidden sm:inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                  {onDuplicateRecord && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields))}
+                                      className="p-1.5 rounded text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
+                                      title="Duplicate Row"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditEntry(rec)}
+                                    className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-[var(--bg-input)] transition-colors"
+                                    title="Edit Entry"
                                   >
-                                    <EditableCell
-                                      field={f}
-                                      value={getEffectiveCellValue(f, rec.data, fields)}
-                                      onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
-                                      onEditFormulaColumn={(fid) => onCustomizeFields(fid)}
-                                    />
-                                  </td>
-                                ))}
-
-                                <td className="px-3 py-2 border-r border-[var(--border-subtle)] text-center text-slate-300">
-                                  ·
-                                </td>
-
-                                <td className="px-2 py-2 text-center whitespace-nowrap">
-                                  <div className="inline-flex items-center gap-0.5">
-                                    {onDuplicateRecord && (
-                                      <button
-                                        type="button"
-                                        onClick={() => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields))}
-                                        className="p-1.5 rounded text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
-                                        title="Duplicate Row"
-                                      >
-                                        <Copy className="w-3.5 h-3.5" />
-                                      </button>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isDeleting}
+                                    onClick={() => onDeleteRecord(rec)}
+                                    className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                    title="Delete Entry"
+                                  >
+                                    {isDeleting ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                                    ) : (
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     )}
-                                    <button
-                                      type="button"
-                                      onClick={() => onEditEntry(rec)}
-                                      className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-[var(--bg-input)] transition-colors"
-                                      title="Edit Entry"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={isDeleting}
-                                      onClick={() => onDeleteRecord(rec)}
-                                      className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                      title="Delete Entry"
-                                    >
-                                      {isDeleting ? (
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
-                                      ) : (
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      )}
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                                  </button>
+                                </div>
+
+                                <div className="sm:hidden inline-flex">
+                                  <ActionMenu items={mobileActions} label="Row actions" />
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Right-edge scroll hint gradient when grid overflows horizontally */}
               {canScrollRight && (
@@ -1731,27 +1507,6 @@ export default function RecordRegisterTable({
           )}
         </>
       )}
-
-      {/* ─── Sticky Mobile FAB above bottom nav (when entries exist) ── */}
-      {fields.length > 0 && records.length > 0 && (
-        <button
-          type="button"
-          onClick={() => onAddEntry()}
-          className="sm:hidden fixed bottom-20 right-4 z-30 bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] active:scale-95 text-white font-bold px-4 py-3 rounded-full shadow-lg shadow-amber-700/25 flex items-center gap-2 transition-transform"
-          aria-label="Add Entry"
-        >
-          <Plus className="w-5 h-5" />
-          <span className="text-sm">Add Entry</span>
-        </button>
-      )}
-
-      {/* Modals & Bottom Sheets */}
-      <QuickAddColumnModal
-        open={addColumnOpen}
-        onClose={() => setAddColumnOpen(false)}
-        onAddColumn={onAddColumn}
-        existingFields={fields}
-      />
 
       <SortModal
         open={sortModalOpen}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  Pencil, Plus, Layers,
+  Plus, Layers,
   AlertTriangle, Loader2, ArrowLeft
 } from 'lucide-react'
 import Card from '../components/ui/Card'
@@ -80,26 +80,31 @@ export default function ProjectWorkspace() {
 
   useEffect(() => { loadWorkspace() }, [loadWorkspace])
 
-  // Sync TopBar breadcrumb with live project name & Edit action
+  // Sync TopBar breadcrumb with live project name & inline click-to-rename
   useEffect(() => {
     if (!project) return
     setTopBar({
       title: project.name,
-      actions: (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setEditProjectOpen(true)}
-          aria-label="Edit Project"
-          title="Edit Project"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Edit Project</span>
-        </Button>
-      ),
+      onRenameTitle: async (nextName) => {
+        try {
+          const res = await updateProject(project.id, {
+            name: nextName,
+            location: project.location,
+            client: project.client,
+            status: project.status,
+            startDate: project.startDate,
+            description: project.description,
+          })
+          setProject((prev) => ({ ...prev, ...res.data }))
+          showToast(`Renamed project to "${res.data.name}"`)
+        } catch (err) {
+          showToast(err.message, 'error')
+          throw err
+        }
+      },
     })
     return () => clearTopBar()
-  }, [project, setTopBar, clearTopBar])
+  }, [project, setTopBar, clearTopBar, showToast])
 
   const loadRecords = useCallback(async (sectionId) => {
     if (!sectionId) {

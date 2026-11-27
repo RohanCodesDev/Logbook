@@ -7,7 +7,7 @@ import { ToastProvider } from '../ui/Toast'
 const TopBarContext = createContext(null)
 
 /**
- * Allows any page to render contextual actions or custom breadcrumb label in the minimal TopBar.
+ * Allows any page to render contextual actions, custom breadcrumb title, or inline rename handler.
  */
 export function useTopBar() {
   const ctx = useContext(TopBarContext)
@@ -16,15 +16,19 @@ export function useTopBar() {
 }
 
 export default function AppLayout({ children }) {
-  const [headerMeta, setHeaderMeta]     = useState({ actions: null, title: null })
+  const [headerMeta, setHeaderMeta]     = useState({ actions: null, title: null, onRenameTitle: null })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const setTopBar = useCallback((meta) => {
-    setHeaderMeta({ actions: meta?.actions ?? null, title: meta?.title ?? null })
+    setHeaderMeta({
+      actions: meta?.actions ?? null,
+      title: meta?.title ?? null,
+      onRenameTitle: meta?.onRenameTitle ?? null,
+    })
   }, [])
 
   const clearTopBar = useCallback(() => {
-    setHeaderMeta({ actions: null, title: null })
+    setHeaderMeta({ actions: null, title: null, onRenameTitle: null })
   }, [])
 
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
@@ -39,6 +43,7 @@ export default function AppLayout({ children }) {
             <TopBar
               actions={headerMeta.actions}
               customTitle={headerMeta.title}
+              onRenameTitle={headerMeta.onRenameTitle}
               onOpenMenu={() => setMobileNavOpen(true)}
             />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
