@@ -1,6 +1,6 @@
 /**
- * Sheet Utilities — Pure functions for Excel-like formulas, multi-kind sorting,
- * per-column filtering, human formatting, and AutoCalculate statistics.
+ * Sheet Utilities — Pure functions for Excel-like formulas, date grouping,
+ * multi-kind sorting, per-column filtering, human formatting, and AutoCalculate stats.
  */
 
 export const CURRENCY_NAME_RE = /\b(rate|amount|price|cost|bill|wage|salary|fee|total|budget)\b/i
@@ -23,6 +23,48 @@ export const SORT_KINDS = [
 ]
 
 /**
+ * Returns local YYYY-MM-DD string for a Date object without UTC shift.
+ */
+export function toLocalYmd(dt = new Date()) {
+  const y = dt.getFullYear()
+  const m = String(dt.getMonth() + 1).padStart(2, '0')
+  const d = String(dt.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export function getTodayYmd() {
+  return toLocalYmd(new Date())
+}
+
+/**
+ * Resolves the canonical YYYY-MM-DD entry date for a record.
+ * Prefers stored record.entryDate, then falls back on legacy rows to any date column or createdAt.
+ */
+export function getRecordDateKey(record, fields = []) {
+  if (record?.entryDate && /^\d{4}-\d{2}-\d{2}/.test(record.entryDate)) {
+    return record.entryDate.slice(0, 10)
+  }
+
+  for (const f of fields) {
+    if (f.fieldType === 'date') {
+      const val = record?.data?.[String(f.id)]
+      if (val && /^\d{4}-\d{2}-\d{2}/.test(String(val).trim())) {
+        return String(val).trim().slice(0, 10)
+      }
+    }
+  }
+
+  if (record?.createdAt) {
+    const dt = new Date(record.createdAt)
+    if (!Number.isNaN(dt.getTime())) {
+      return toLocalYmd(dt)
+    }
+  }
+
+  return getTodayYmd()
+}
+
+/**
  * Formats YYYY-MM-DD or ISO date string cleanly as "24 Nov 2026" without timezone drift.
  */
 export function formatHumanDate(raw) {
@@ -40,6 +82,33 @@ export function formatHumanDate(raw) {
     return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   }
   return str
+}
+
+/**
+ * Builds centered date header metadata (title, Today/Yesterday badge, weekday).
+ */
+export function formatDateGroupMeta(ymd) {
+  const today = getTodayYmd()
+  const yesterdayDt = new Date()
+  yesterdayDt.setDate(yesterdayDt.getDate() - 1)
+  const yesterday = toLocalYmd(yesterdayDt)
+
+  const match = String(ymd).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  let weekday = ''
+  if (match) {
+    const [, y, m, d] = match.map(Number)
+    const dt = new Date(y, m - 1, d)
+    if (!Number.isNaN(dt.getTime())) {
+      weekday = dt.toLocaleDateString('en-GB', { weekday: 'long' })
+    }
+  }
+
+  return {
+    dateKey: ymd,
+    title: formatHumanDate(ymd),
+    relativeTag: ymd === today ? 'Today' : ymd === yesterday ? 'Yesterday' : null,
+    weekday,
+  }
 }
 
 /**
@@ -137,9 +206,6 @@ export function formatPlainValue(field, value) {
   return String(value)
 }
 
-/**
- * Checks whether a column represents currency amounts.
- */
 export function isCurrencyField(field) {
   if (!field) return false
   if (field.fieldType === 'currency') return true
@@ -148,9 +214,6 @@ export function isCurrencyField(field) {
   return false
 }
 
-/**
- * Checks whether a column supports numeric summary stats (SUM, AVG, MIN, MAX).
- */
 export function isNumericColumn(field) {
   if (!field) return false
   return (
@@ -161,9 +224,6 @@ export function isNumericColumn(field) {
   )
 }
 
-/**
- * Builds distinct display labels when duplicate column names exist in the same sheet.
- */
 export function buildDisplayLabels(fields) {
   const counts = {}
   for (const f of fields) {
@@ -185,9 +245,6 @@ export function buildDisplayLabels(fields) {
   return labels
 }
 
-/**
- * Resolves the effective sort kind when set to 'auto'.
- */
 export function resolveSortKind(field, requestedKind = 'auto') {
   if (requestedKind && requestedKind !== 'auto') return requestedKind
   if (!field) return 'date'
@@ -200,14 +257,16 @@ export function resolveSortKind(field, requestedKind = 'auto') {
   return 'alpha'
 }
 
-/**
- * Compares two records using a specific sort level.
- */
 function compareByLevel(recA, recB, level, fields) {
   const { key, kind = 'auto', direction = 'asc', blanks = 'last' } = level
   const dir = direction === 'desc' ? -1 : 1
 
-  // Built-in record metadata sort keys
+  if (key === '__entryDate') {
+    const dA = parseDateMs(getRecordDateKey(recA, fields)) ?? 0
+    const dB = parseDateMs(getRecordDateKey(recB, fields)) ?? 0
+    return (dA - dB) * dir
+  }
+
   if (key === '__createdAt' || key === '__updatedAt') {
     const rawA = key === '__updatedAt' ? recA.updatedAt : recA.createdAt
     const rawB = key === '__updatedAt' ? recB.updatedAt : recB.createdAt
@@ -255,7 +314,7 @@ function compareByLevel(recA, recB, level, fields) {
     case 'checkbox': {
       const bA = Boolean(valA) ? 1 : 0
       const bB = Boolean(valB) ? 1 : 0
-      return (bB - bA) * dir // asc puts Checked ('Yes') first
+      return (bB - bA) * dir
     }
 
     case 'option': {
@@ -281,10 +340,6 @@ function compareByLevel(recA, recB, level, fields) {
   }
 }
 
-/**
- * Sorts records cleanly without mutating the input array.
- * Supports primary + optional secondary sort levels.
- */
 export function sortRecords(records, sortLevels = [], fields = []) {
   if (!sortLevels || sortLevels.length === 0) return records
   return [...records].sort((a, b) => {
@@ -297,10 +352,46 @@ export function sortRecords(records, sortLevels = [], fields = []) {
   })
 }
 
-/**
- * Checks if a single row satisfies a single column filter rule.
- */
+function matchesDateOp(ts, rule) {
+  if (ts === null) return false
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  switch (rule.op) {
+    case 'today':
+      return ts === todayStart
+    case 'last7': {
+      const weekAgo = todayStart - 6 * 86400000
+      return ts >= weekAgo && ts <= todayStart
+    }
+    case 'this_month': {
+      const d = new Date(ts)
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+    }
+    case 'after': {
+      const afterMs = parseDateMs(rule.value)
+      return afterMs === null ? true : ts >= afterMs
+    }
+    case 'before': {
+      const beforeMs = parseDateMs(rule.value)
+      return beforeMs === null ? true : ts <= beforeMs
+    }
+    case 'between': {
+      const startMs = parseDateMs(rule.value)
+      const endMs = parseDateMs(rule.value2)
+      return (startMs === null || ts >= startMs) && (endMs === null || ts <= endMs)
+    }
+    default:
+      return true
+  }
+}
+
 function matchesFilterRule(record, rule, fields) {
+  // Built-in Entry Date filter
+  if (rule.fieldId === '__entryDate') {
+    const dateKey = getRecordDateKey(record, fields)
+    return matchesDateOp(parseDateMs(dateKey), rule)
+  }
+
   const field = fields.find((f) => String(f.id) === String(rule.fieldId))
   if (!field) return true
 
@@ -318,14 +409,12 @@ function matchesFilterRule(record, rule, fields) {
 
   if (isEmpty) return false
 
-  // Multi-select dropdown match
   if (rule.op === 'in') {
     const selected = Array.isArray(rule.values) ? rule.values : []
     if (selected.length === 0) return true
     return selected.includes(String(raw))
   }
 
-  // Numeric / currency / formula filters
   if (isNumericColumn(field)) {
     const num = parseNumericValue(raw)
     if (num === null) return false
@@ -342,42 +431,10 @@ function matchesFilterRule(record, rule, fields) {
     }
   }
 
-  // Date filters
   if (field.fieldType === 'date') {
-    const ts = parseDateMs(raw)
-    if (ts === null) return false
-    const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-    switch (rule.op) {
-      case 'today':
-        return ts === todayStart
-      case 'last7': {
-        const weekAgo = todayStart - 6 * 86400000
-        return ts >= weekAgo && ts <= todayStart
-      }
-      case 'this_month': {
-        const d = new Date(ts)
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-      }
-      case 'after': {
-        const afterMs = parseDateMs(rule.value)
-        return afterMs === null ? true : ts >= afterMs
-      }
-      case 'before': {
-        const beforeMs = parseDateMs(rule.value)
-        return beforeMs === null ? true : ts <= beforeMs
-      }
-      case 'between': {
-        const startMs = parseDateMs(rule.value)
-        const endMs = parseDateMs(rule.value2)
-        return (startMs === null || ts >= startMs) && (endMs === null || ts <= endMs)
-      }
-      default:
-        return true
-    }
+    return matchesDateOp(parseDateMs(raw), rule)
   }
 
-  // Text / fallback filters
   const text = String(raw).toLowerCase()
   const target = String(rule.value || '').trim().toLowerCase()
   if (!target) return true
@@ -389,20 +446,19 @@ function matchesFilterRule(record, rule, fields) {
   }
 }
 
-/**
- * Filters records by global search string + active column filter rules.
- */
 export function filterRecords(records, search = '', columnFilters = [], fields = []) {
   const q = search.trim().toLowerCase()
   return records.filter((rec) => {
     if (q) {
-      const hitsSearch = fields.some((f) => {
+      const dateKey = getRecordDateKey(rec, fields)
+      const dateHit = `${dateKey} ${formatHumanDate(dateKey)}`.toLowerCase().includes(q)
+      const fieldHit = fields.some((f) => {
         const val = getEffectiveCellValue(f, rec.data, fields)
         if (val === undefined || val === null || val === '') return false
         const str = f.fieldType === 'date' ? `${val} ${formatHumanDate(val)}` : String(val)
         return str.toLowerCase().includes(q)
       })
-      if (!hitsSearch) return false
+      if (!dateHit && !fieldHit) return false
     }
 
     for (const rule of columnFilters) {
@@ -412,9 +468,6 @@ export function filterRecords(records, search = '', columnFilters = [], fields =
   })
 }
 
-/**
- * Computes SUM, AVG, MIN, MAX, and filled counts for Excel-style AutoCalculate stats.
- */
 export function computeSheetStats(records, fields) {
   const byField = {}
   const summaryFields = fields.filter(isNumericColumn)
@@ -444,4 +497,31 @@ export function computeSheetStats(records, fields) {
   }
 
   return { summaryFields, byField }
+}
+
+/**
+ * Groups records by Entry Date with per-day metadata & subtotals.
+ */
+export function groupRecordsByDate(records, fields = [], dateDirection = 'desc') {
+  const buckets = new Map()
+  for (const rec of records) {
+    const key = getRecordDateKey(rec, fields)
+    if (!buckets.has(key)) buckets.set(key, [])
+    buckets.get(key).push(rec)
+  }
+
+  const keys = Array.from(buckets.keys()).sort((a, b) =>
+    dateDirection === 'asc' ? a.localeCompare(b) : b.localeCompare(a)
+  )
+
+  return keys.map((key) => {
+    const dayRecords = buckets.get(key)
+    const meta = formatDateGroupMeta(key)
+    const stats = computeSheetStats(dayRecords, fields)
+    return {
+      ...meta,
+      records: dayRecords,
+      stats,
+    }
+  })
 }

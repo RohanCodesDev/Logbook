@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Trash2, Search, Download, Plus, Pencil, Copy,
@@ -18,6 +18,8 @@ import {
   formatHumanDate,
   formatPlainValue,
   getEffectiveCellValue,
+  getRecordDateKey,
+  groupRecordsByDate,
   isNumericColumn,
   buildDisplayLabels,
   resolveSortKind,
@@ -907,6 +909,65 @@ function MobileEntryCard({
 }
 
 /**
+ * Center-aligned Date Header & Subheader for each day's entries.
+ */
+function DateGroupBanner({ group, onAddForDate }) {
+  const { title, relativeTag, weekday, dateKey, records, stats } = group
+  const primaryField = stats.summaryFields[0]
+  const primarySummary = primaryField ? stats.byField[primaryField.id] : null
+
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-2.5 px-4 select-none">
+      {/* Centered Date Header */}
+      <div className="inline-flex items-center justify-center gap-2">
+        <Calendar className="w-3.5 h-3.5 text-[#E08A1E]" />
+        <h4 className="font-heading text-sm sm:text-base font-bold text-[var(--text-primary)] tracking-tight">
+          {title}
+        </h4>
+        {relativeTag && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#FEF6E9] text-[#C97814] border border-[#FDE68A]">
+            {relativeTag}
+          </span>
+        )}
+      </div>
+
+      {/* Centered Date Subheader */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] font-medium text-slate-500">
+        {weekday && <span>{weekday}</span>}
+        {weekday && <span className="text-slate-300">•</span>}
+        <span className="tabular-nums">
+          {records.length} {records.length === 1 ? 'entry' : 'entries'}
+        </span>
+        {primarySummary && (
+          <>
+            <span className="text-slate-300">•</span>
+            <span className="tabular-nums font-semibold text-[var(--text-primary)]">
+              {primaryField.name}:{' '}
+              {primarySummary.isCurrency
+                ? `₹${primarySummary.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                : primarySummary.sum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            </span>
+          </>
+        )}
+        {onAddForDate && (
+          <>
+            <span className="text-slate-300">•</span>
+            <button
+              type="button"
+              onClick={() => onAddForDate(dateKey)}
+              className="inline-flex items-center gap-0.5 font-semibold text-[#C97814] hover:text-[#E08A1E] transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add</span>
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
  * Fingertip Action Pill Button inside the quick command strip
  */
 function QuickActionPill({ icon: Icon, label, active = false, badge = null, onClick }) {
@@ -962,6 +1023,7 @@ export default function RecordRegisterTable({
   const [search, setSearch]                 = useState('')
   const [sortLevels, setSortLevels]         = useState([])
   const [columnFilters, setColumnFilters]   = useState([])
+  const [groupByDate, setGroupByDate]       = useState(true)
   const [viewModeOverride, setViewModeOverride] = useState(null) // null -> auto ('cards' < 640px, 'grid' >= 640px)
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
@@ -1013,6 +1075,14 @@ export default function RecordRegisterTable({
     const filtered = filterRecords(records, search, columnFilters, fields)
     return sortRecords(filtered, sortLevels, fields)
   }, [records, search, columnFilters, sortLevels, fields])
+
+  const entryDateSort = sortLevels.find((l) => l.key === '__entryDate')
+  const dateDirection = entryDateSort?.direction || 'desc'
+
+  const dateGroups = useMemo(
+    () => (groupByDate ? groupRecordsByDate(processedRecords, fields, dateDirection) : []),
+    [groupByDate, processedRecords, fields, dateDirection]
+  )
 
   const { summaryFields, byField: statsByField } = useMemo(
     () => computeSheetStats(processedRecords, fields),
@@ -1073,9 +1143,10 @@ export default function RecordRegisterTable({
   const handleExportCsv = () => {
     if (!fields.length || !processedRecords.length) return
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const header = ['SL', ...fields.map((f) => esc(displayLabels[f.id]))].join(',')
+    const header = ['Entry Date', 'SL', ...fields.map((f) => esc(displayLabels[f.id]))].join(',')
     const rows = processedRecords.map((rec, idx) =>
       [
+        esc(formatHumanDate(getRecordDateKey(rec, fields))),
         idx + 1,
         ...fields.map((f) => esc(formatPlainValue(f, getEffectiveCellValue(f, rec.data, fields)))),
       ].join(',')
@@ -1094,7 +1165,13 @@ export default function RecordRegisterTable({
     if (!sortLevels.length) return 'Sort'
     const first = sortLevels[0]
     const f = fields.find((x) => String(x.id) === String(first.key))
-    const name = f ? (displayLabels[f.id] || f.name) : first.key === '__updatedAt' ? 'Updated' : 'Created'
+    const name = f
+      ? (displayLabels[f.id] || f.name)
+      : first.key === '__entryDate'
+        ? 'Entry Date'
+        : first.key === '__updatedAt'
+          ? 'Updated'
+          : 'Created'
     return `${name} ${first.direction === 'desc' ? '↓' : '↑'}`
   }
 
@@ -1154,7 +1231,7 @@ export default function RecordRegisterTable({
             <Button
               variant="primary"
               size="sm"
-              onClick={onAddEntry}
+              onClick={() => onAddEntry()}
               className="hidden sm:inline-flex"
             >
               <Plus className="w-4 h-4" />
@@ -1277,6 +1354,12 @@ export default function RecordRegisterTable({
             onClick={() => setTotalsModalOpen(true)}
           />
           <QuickActionPill
+            icon={Calendar}
+            label="By Date"
+            active={groupByDate}
+            onClick={() => setGroupByDate((prev) => !prev)}
+          />
+          <QuickActionPill
             icon={effectiveView === 'cards' ? TableIcon : LayoutList}
             label={effectiveView === 'cards' ? 'Grid View' : 'Card View'}
             onClick={() => setViewModeOverride(effectiveView === 'cards' ? 'grid' : 'cards')}
@@ -1296,7 +1379,13 @@ export default function RecordRegisterTable({
         <div className="flex flex-wrap items-center gap-1.5 px-4 sm:px-6 py-2 bg-[var(--bg-canvas)] border-b border-[var(--border-subtle)] text-xs">
           {sortLevels.map((lvl, idx) => {
             const f = fields.find((x) => String(x.id) === String(lvl.key))
-            const label = f ? (displayLabels[f.id] || f.name) : lvl.key === '__updatedAt' ? 'Updated' : 'Created'
+            const label = f
+              ? (displayLabels[f.id] || f.name)
+              : lvl.key === '__entryDate'
+                ? 'Entry Date'
+                : lvl.key === '__updatedAt'
+                  ? 'Updated'
+                  : 'Created'
             return (
               <span
                 key={`sort-${idx}`}
@@ -1318,7 +1407,9 @@ export default function RecordRegisterTable({
 
           {columnFilters.map((rule, idx) => {
             const f = fields.find((x) => String(x.id) === String(rule.fieldId))
-            const label = f ? (displayLabels[f.id] || f.name) : 'Column'
+            const label = rule.fieldId === '__entryDate'
+              ? 'Entry Date'
+              : (f ? (displayLabels[f.id] || f.name) : 'Column')
             const desc = rule.op === 'in'
               ? (rule.values || []).join(', ')
               : rule.op === 'between'
@@ -1381,7 +1472,7 @@ export default function RecordRegisterTable({
           title={`No entries in ${section.name} yet`}
           description={`Start logging records across your ${fields.length} ${fields.length === 1 ? 'column' : 'columns'}.`}
           action={
-            <Button variant="primary" onClick={onAddEntry}>
+            <Button variant="primary" onClick={() => onAddEntry()}>
               <Plus className="w-4 h-4" />
               Add First Entry
             </Button>
@@ -1409,19 +1500,43 @@ export default function RecordRegisterTable({
         <>
           {effectiveView === 'cards' ? (
             /* ─── Mobile / Card View ─────────────────────────────────── */
-            <div className="p-3.5 sm:p-5 space-y-3 bg-[var(--bg-canvas)]/70">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {processedRecords.map((rec, idx) => (
-                  <MobileEntryCard
-                    key={rec.id}
-                    record={rec}
-                    index={idx}
-                    fields={fields}
-                    displayLabels={displayLabels}
-                    onEdit={onEditEntry}
-                  />
-                ))}
-              </div>
+            <div className="p-3.5 sm:p-5 space-y-5 bg-[var(--bg-canvas)]/70">
+              {groupByDate ? (
+                dateGroups.map((group) => (
+                  <section key={group.dateKey} className="space-y-3">
+                    {/* Centered Date Header & Subheader */}
+                    <div className="border-b border-[var(--border-subtle)] pb-1">
+                      <DateGroupBanner group={group} onAddForDate={onAddEntry} />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {group.records.map((rec, idx) => (
+                        <MobileEntryCard
+                          key={rec.id}
+                          record={rec}
+                          index={idx}
+                          fields={fields}
+                          displayLabels={displayLabels}
+                          onEdit={onEditEntry}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {processedRecords.map((rec, idx) => (
+                    <MobileEntryCard
+                      key={rec.id}
+                      record={rec}
+                      index={idx}
+                      fields={fields}
+                      displayLabels={displayLabels}
+                      onEdit={onEditEntry}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* Quick Totals bar in Card View when numeric columns exist */}
               {summaryFields.length > 0 && (
@@ -1511,80 +1626,96 @@ export default function RecordRegisterTable({
                     </thead>
 
                     <tbody>
-                      {processedRecords.map((rec, idx) => {
-                        const isDeleting = deletingRecordId === rec.id
-                        const isEven = idx % 2 === 1
-                        return (
-                          <tr
-                            key={rec.id}
-                            className={`group border-b border-[var(--border-subtle)] transition-colors ${
-                              isEven ? 'bg-[#F6F4EF]/55' : 'bg-[var(--bg-card)]'
-                            } hover:bg-[#FEF6E9]/60`}
-                          >
-                            <td
-                              className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-[var(--border-subtle)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
-                                isEven ? 'bg-[#F6F4EF]' : 'bg-[var(--bg-card)]'
-                              } group-hover:bg-[#FEF6E9]`}
-                            >
-                              {String(idx + 1).padStart(2, '0')}
-                            </td>
-
-                            {fields.map((f) => (
-                              <td
-                                key={f.id}
-                                className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
-                              >
-                                <EditableCell
-                                  field={f}
-                                  value={getEffectiveCellValue(f, rec.data, fields)}
-                                  onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
-                                  onEditFormulaColumn={(fid) => onCustomizeFields(fid)}
-                                />
+                      {(groupByDate
+                        ? dateGroups
+                        : [{ dateKey: '__all', records: processedRecords }]
+                      ).map((group) => (
+                        <Fragment key={group.dateKey}>
+                          {groupByDate && (
+                            <tr className="bg-[var(--bg-canvas)] border-y border-[var(--border-subtle)]">
+                              <td colSpan={fields.length + 3} className="p-0">
+                                <div className="sticky left-0 max-w-[calc(100vw-2.25rem)] sm:max-w-full">
+                                  <DateGroupBanner group={group} onAddForDate={onAddEntry} />
+                                </div>
                               </td>
-                            ))}
+                            </tr>
+                          )}
+                          {group.records.map((rec, idx) => {
+                            const isDeleting = deletingRecordId === rec.id
+                            const isEven = idx % 2 === 1
+                            return (
+                              <tr
+                                key={rec.id}
+                                className={`group border-b border-[var(--border-subtle)] transition-colors ${
+                                  isEven ? 'bg-[#F6F4EF]/55' : 'bg-[var(--bg-card)]'
+                                } hover:bg-[#FEF6E9]/60`}
+                              >
+                                <td
+                                  className={`sticky left-0 z-10 px-3 py-2 text-center border-r border-[var(--border-subtle)] text-xs font-bold tabular-nums text-slate-400 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] ${
+                                    isEven ? 'bg-[#F6F4EF]' : 'bg-[var(--bg-card)]'
+                                  } group-hover:bg-[#FEF6E9]`}
+                                >
+                                  {String(idx + 1).padStart(2, '0')}
+                                </td>
 
-                            <td className="px-3 py-2 border-r border-[var(--border-subtle)] text-center text-slate-300">
-                              ·
-                            </td>
-
-                            <td className="px-2 py-2 text-center whitespace-nowrap">
-                              <div className="inline-flex items-center gap-0.5">
-                                {onDuplicateRecord && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onDuplicateRecord(rec.data)}
-                                    className="p-1.5 rounded text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
-                                    title="Duplicate Row"
+                                {fields.map((f) => (
+                                  <td
+                                    key={f.id}
+                                    className={`p-0 border-r border-[var(--border-subtle)] whitespace-nowrap align-middle ${getColumnWidthClass(f.fieldType)}`}
                                   >
-                                    <Copy className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => onEditEntry(rec)}
-                                  className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-[var(--bg-input)] transition-colors"
-                                  title="Edit Entry"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isDeleting}
-                                  onClick={() => onDeleteRecord(rec)}
-                                  className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                  title="Delete Entry"
-                                >
-                                  {isDeleting ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
-                                  ) : (
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
+                                    <EditableCell
+                                      field={f}
+                                      value={getEffectiveCellValue(f, rec.data, fields)}
+                                      onSave={(nextVal) => handleCellChange(rec, f.id, nextVal)}
+                                      onEditFormulaColumn={(fid) => onCustomizeFields(fid)}
+                                    />
+                                  </td>
+                                ))}
+
+                                <td className="px-3 py-2 border-r border-[var(--border-subtle)] text-center text-slate-300">
+                                  ·
+                                </td>
+
+                                <td className="px-2 py-2 text-center whitespace-nowrap">
+                                  <div className="inline-flex items-center gap-0.5">
+                                    {onDuplicateRecord && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onDuplicateRecord(rec.data, getRecordDateKey(rec, fields))}
+                                        className="p-1.5 rounded text-slate-400 hover:text-[#C97814] hover:bg-[#FEF6E9] transition-colors"
+                                        title="Duplicate Row"
+                                      >
+                                        <Copy className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => onEditEntry(rec)}
+                                      className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-[var(--bg-input)] transition-colors"
+                                      title="Edit Entry"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isDeleting}
+                                      onClick={() => onDeleteRecord(rec)}
+                                      className="p-1.5 rounded text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                      title="Delete Entry"
+                                    >
+                                      {isDeleting ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                                      ) : (
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </Fragment>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1605,7 +1736,7 @@ export default function RecordRegisterTable({
       {fields.length > 0 && records.length > 0 && (
         <button
           type="button"
-          onClick={onAddEntry}
+          onClick={() => onAddEntry()}
           className="sm:hidden fixed bottom-20 right-4 z-30 bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] active:scale-95 text-white font-bold px-4 py-3 rounded-full shadow-lg shadow-amber-700/25 flex items-center gap-2 transition-transform"
           aria-label="Add Entry"
         >

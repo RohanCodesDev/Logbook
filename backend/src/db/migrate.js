@@ -77,10 +77,16 @@ export async function runMigrations() {
       CREATE TABLE IF NOT EXISTS section_records (
         id          SERIAL PRIMARY KEY,
         section_id  INTEGER      NOT NULL REFERENCES project_sections(id) ON DELETE CASCADE,
+        entry_date  DATE         NOT NULL DEFAULT CURRENT_DATE,
         data        JSONB        NOT NULL DEFAULT '{}'::jsonb,
         created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
         updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE section_records
+      ADD COLUMN IF NOT EXISTS entry_date DATE;
     `);
 
     // 6. Attach updated_at triggers safely

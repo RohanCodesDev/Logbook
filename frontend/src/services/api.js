@@ -45,7 +45,7 @@ export const deleteField   = (fieldId)             => request(`/fields/${fieldId
 
 // ─── Records (Rows inside a Section) ─────────────────────────────────────────
 
-export const getRecords   = (sectionId)       => request(`/sections/${sectionId}/records`);
-export const createRecord = (sectionId, data) => request(`/sections/${sectionId}/records`, { method: 'POST', body: JSON.stringify({ data }) });
-export const updateRecord = (recordId, data)  => request(`/records/${recordId}`, { method: 'PUT', body: JSON.stringify({ data }) });
-export const deleteRecord = (recordId)        => request(`/records/${recordId}`, { method: 'DELETE' });
+export const getRecords   = (sectionId)                  => request(`/sections/${sectionId}/records`);
+export const createRecord = (sectionId, data, entryDate) => request(`/sections/${sectionId}/records`, { method: 'POST', body: JSON.stringify({ data, entryDate }) });
+export const updateRecord = (recordId, data, entryDate)  => request(`/records/${recordId}`, { method: 'PUT', body: JSON.stringify({ data, entryDate }) });
+export const deleteRecord = (recordId)                   => request(`/records/${recordId}`, { method: 'DELETE' });

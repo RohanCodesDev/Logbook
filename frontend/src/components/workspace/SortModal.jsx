@@ -115,6 +115,7 @@ export default function SortModal({
                     value={lvl.key}
                     onChange={(e) => updateLevel(idx, { key: e.target.value, kind: 'auto' })}
                   >
+                    <option value="__entryDate">Entry Date (Header Group)</option>
                     {fields.map((f) => (
                       <option key={f.id} value={String(f.id)}>
                         {displayLabels[f.id] || f.name}
@@ -126,7 +127,7 @@ export default function SortModal({
                 </InputField>
 
                 {/* Sort Kind Picker */}
-                {lvl.key !== '__createdAt' && lvl.key !== '__updatedAt' && (
+                {lvl.key !== '__entryDate' && lvl.key !== '__createdAt' && lvl.key !== '__updatedAt' && (
                   <InputField label="Sort Method (Kind)">
                     <select
                       className={inputClass}
@@ -170,7 +171,7 @@ export default function SortModal({
                 </div>
 
                 {/* Blank cells placement */}
-                {lvl.key !== '__createdAt' && lvl.key !== '__updatedAt' && (
+                {lvl.key !== '__entryDate' && lvl.key !== '__createdAt' && lvl.key !== '__updatedAt' && (
                   <div className="flex items-center justify-between pt-1 text-xs">
                     <span className="text-slate-500 font-medium">Empty cells:</span>
                     <div className="inline-flex rounded-lg bg-[var(--bg-input)] p-0.5 border border-[var(--border-subtle)]">

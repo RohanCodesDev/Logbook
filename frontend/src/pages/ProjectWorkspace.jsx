@@ -53,6 +53,7 @@ export default function ProjectWorkspace() {
 
   const [recordModalOpen, setRecordModalOpen]       = useState(false)
   const [editingRecord, setEditingRecord]           = useState(null)
+  const [defaultEntryDate, setDefaultEntryDate]     = useState(null)
   const [deleteRecordTarget, setDeleteRecordTarget] = useState(null)
   const [deletingRecordId, setDeletingRecordId]     = useState(null)
 
@@ -229,13 +230,13 @@ export default function ProjectWorkspace() {
     }
   }
 
-  const handleSaveRecord = async (data) => {
+  const handleSaveRecord = async (data, entryDate) => {
     if (editingRecord) {
-      const res = await updateRecord(editingRecord.id, data)
+      const res = await updateRecord(editingRecord.id, data, entryDate)
       setRecords((prev) => prev.map((r) => (r.id === editingRecord.id ? res.data : r)))
       showToast('Entry updated')
     } else {
-      const res = await createRecord(activeSection.id, data)
+      const res = await createRecord(activeSection.id, data, entryDate)
       setRecords((prev) => [...prev, res.data])
       setSections((prev) =>
         prev.map((s) =>
@@ -246,9 +247,9 @@ export default function ProjectWorkspace() {
     }
   }
 
-  const handleDuplicateRecord = async (data) => {
+  const handleDuplicateRecord = async (data, entryDate) => {
     try {
-      const res = await createRecord(activeSection.id, data)
+      const res = await createRecord(activeSection.id, data, entryDate)
       setRecords((prev) => [...prev, res.data])
       setSections((prev) =>
         prev.map((s) =>
@@ -362,8 +363,16 @@ export default function ProjectWorkspace() {
                 section={activeSection}
                 records={records}
                 loading={loadingRecords}
-                onAddEntry={() => { setEditingRecord(null); setRecordModalOpen(true) }}
-                onEditEntry={(rec) => { setEditingRecord(rec); setRecordModalOpen(true) }}
+                onAddEntry={(dateKey = null) => {
+                  setEditingRecord(null)
+                  setDefaultEntryDate(typeof dateKey === 'string' ? dateKey : null)
+                  setRecordModalOpen(true)
+                }}
+                onEditEntry={(rec) => {
+                  setEditingRecord(rec)
+                  setDefaultEntryDate(null)
+                  setRecordModalOpen(true)
+                }}
                 onDuplicateRecord={handleDuplicateRecord}
                 onInlineUpdateRecord={handleInlineUpdateRecord}
                 onDeleteRecord={(rec) => setDeleteRecordTarget(rec)}
@@ -414,11 +423,15 @@ export default function ProjectWorkspace() {
 
       <RecordFormModal
         open={recordModalOpen}
-        onClose={() => setRecordModalOpen(false)}
+        onClose={() => {
+          setRecordModalOpen(false)
+          setDefaultEntryDate(null)
+        }}
         section={activeSection}
         initialRecord={editingRecord}
+        defaultEntryDate={defaultEntryDate}
         onSubmit={handleSaveRecord}
-        onDuplicate={(data) => handleDuplicateRecord(data)}
+        onDuplicate={(data, entryDate) => handleDuplicateRecord(data, entryDate)}
         onDelete={(rec) => {
           setRecordModalOpen(false)
           setDeleteRecordTarget(rec)

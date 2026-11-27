@@ -1,19 +1,26 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Save, AlertTriangle, Loader2, CheckCircle2, Trash2, Copy, Calculator } from 'lucide-react'
+import { Plus, Save, AlertTriangle, Loader2, CheckCircle2, Trash2, Copy, Calculator, Calendar } from 'lucide-react'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import InputField, { inputClass } from '../ui/InputField'
-import { evaluateFormulaValue, FORMULA_OPERATORS } from '../../utils/sheetUtils'
+import {
+  evaluateFormulaValue,
+  FORMULA_OPERATORS,
+  getRecordDateKey,
+  getTodayYmd,
+  toLocalYmd,
+} from '../../utils/sheetUtils'
 
 /**
  * RecordFormModal — Responsive mobile Bottom Sheet / desktop modal for adding & editing entries.
- * Supports live Auto Formula preview and 1-tap entry duplication.
+ * Includes built-in Entry Date picker (so date headers group cleanly without needing a Date column).
  */
 export default function RecordFormModal({
   open,
   onClose,
   section,
   initialRecord = null,
+  defaultEntryDate = null,
   onSubmit,
   onDuplicate,
   onDelete,
@@ -22,6 +29,7 @@ export default function RecordFormModal({
   const fields = section?.fields || []
   const firstInputRef = useRef(null)
 
+  const [entryDate, setEntryDate]         = useState(getTodayYmd())
   const [values, setValues]               = useState({})
   const [submitting, setSubmitting]       = useState(false)
   const [addNextSuccess, setAddNextSuccess] = useState(false)
@@ -38,7 +46,7 @@ export default function RecordFormModal({
       } else if (f.fieldType === 'checkbox') {
         init[key] = false
       } else if (f.fieldType === 'date') {
-        init[key] = new Date().toISOString().split('T')[0]
+        init[key] = defaultEntryDate || getTodayYmd()
       } else {
         init[key] = ''
       }
@@ -51,7 +59,12 @@ export default function RecordFormModal({
     setError(null)
     setAddNextSuccess(false)
     setValues(getInitialValues())
-  }, [open, initialRecord, section?.id])
+    setEntryDate(
+      initialRecord
+        ? getRecordDateKey(initialRecord, fields)
+        : (defaultEntryDate || getTodayYmd())
+    )
+  }, [open, initialRecord, defaultEntryDate, section?.id])
 
   const handleChange = (fieldId, val) => {
     setValues((prev) => ({ ...prev, [String(fieldId)]: val }))
@@ -60,7 +73,12 @@ export default function RecordFormModal({
   const setRelativeDate = (fieldId, offsetDays = 0) => {
     const d = new Date()
     d.setDate(d.getDate() + offsetDays)
-    handleChange(fieldId, d.toISOString().split('T')[0])
+    const ymd = toLocalYmd(d)
+    if (fieldId === '__entryDate') {
+      setEntryDate(ymd)
+    } else {
+      handleChange(fieldId, ymd)
+    }
   }
 
   const validateAndPrepare = () => {
@@ -95,7 +113,7 @@ export default function RecordFormModal({
     setSubmitting(true)
     setError(null)
     try {
-      await onSubmit(cleanData)
+      await onSubmit(cleanData, entryDate)
       if (addNext) {
         setValues((prev) => {
           const reset = {}
@@ -103,7 +121,7 @@ export default function RecordFormModal({
             if (f.fieldType === 'formula') continue
             const key = String(f.id)
             if (f.fieldType === 'date') {
-              reset[key] = prev[key] || new Date().toISOString().split('T')[0]
+              reset[key] = prev[key] || entryDate || getTodayYmd()
             } else if (f.fieldType === 'checkbox') {
               reset[key] = false
             } else {
@@ -132,7 +150,7 @@ export default function RecordFormModal({
     setSubmitting(true)
     setError(null)
     try {
-      await onDuplicate(cleanData)
+      await onDuplicate(cleanData, entryDate)
       onClose()
     } catch (err) {
       setError(err.message)
@@ -154,6 +172,39 @@ export default function RecordFormModal({
             <span>Entry saved! Ready for next entry.</span>
           </div>
         )}
+
+        {/* Built-in Entry Date (controls centered Date Header grouping) */}
+        <div className="p-3 rounded-xl bg-[var(--bg-canvas)] border border-[var(--border-subtle)] space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-[#E08A1E]" />
+              <span>Entry Date</span>
+            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRelativeDate('__entryDate', 0)}
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[var(--bg-input)] hover:bg-[#E6E1D6] text-slate-700 transition-colors"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => setRelativeDate('__entryDate', -1)}
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[var(--bg-input)] hover:bg-[#E6E1D6] text-slate-700 transition-colors"
+              >
+                Yesterday
+              </button>
+            </div>
+          </div>
+          <input
+            type="date"
+            required
+            className={inputClass}
+            value={entryDate}
+            onChange={(e) => setEntryDate(e.target.value)}
+          />
+        </div>
 
         <div className="space-y-3.5">
           {fields.map((f, idx) => {

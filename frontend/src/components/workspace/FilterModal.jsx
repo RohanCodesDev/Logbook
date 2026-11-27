@@ -6,9 +6,9 @@ import { inputClass } from '../ui/InputField'
 import { isNumericColumn } from '../../utils/sheetUtils'
 
 function getDefaultOp(field) {
-  if (!field) return 'contains'
+  if (!field) return 'last7'
+  if (field === '__entryDate' || field.fieldType === 'date') return 'last7'
   if (isNumericColumn(field)) return 'gte'
-  if (field.fieldType === 'date') return 'last7'
   if (field.fieldType === 'select') return 'in'
   if (field.fieldType === 'checkbox') return 'is_true'
   return 'contains'
@@ -16,6 +16,16 @@ function getDefaultOp(field) {
 
 function getOperatorsForField(field) {
   if (!field) return []
+  if (field === '__entryDate') {
+    return [
+      { value: 'today',      label: 'Today' },
+      { value: 'last7',      label: 'Last 7 Days' },
+      { value: 'this_month', label: 'This Month' },
+      { value: 'after',      label: 'On or After' },
+      { value: 'before',     label: 'On or Before' },
+      { value: 'between',    label: 'Between Dates' },
+    ]
+  }
   if (isNumericColumn(field)) {
     return [
       { value: 'gte',       label: 'At least (>=)' },
@@ -136,11 +146,13 @@ export default function FilterModal({
         ) : (
           <div className="space-y-3">
             {rules.map((rule, idx) => {
-              const field = fields.find((f) => String(f.id) === String(rule.fieldId)) || fields[0]
+              const field = rule.fieldId === '__entryDate'
+                ? '__entryDate'
+                : fields.find((f) => String(f.id) === String(rule.fieldId)) || fields[0]
               const ops = getOperatorsForField(field)
               const needsNoInput = ['empty', 'not_empty', 'today', 'last7', 'this_month', 'is_true', 'is_false'].includes(rule.op)
-              const isNum = isNumericColumn(field)
-              const isDate = field?.fieldType === 'date'
+              const isNum = field !== '__entryDate' && isNumericColumn(field)
+              const isDate = field === '__entryDate' || field?.fieldType === 'date'
 
               return (
                 <div
@@ -166,9 +178,12 @@ export default function FilterModal({
                       className={inputClass}
                       value={rule.fieldId}
                       onChange={(e) => {
-                        const nextField = fields.find((f) => String(f.id) === e.target.value)
+                        const nextVal = e.target.value
+                        const nextField = nextVal === '__entryDate'
+                          ? '__entryDate'
+                          : fields.find((f) => String(f.id) === nextVal)
                         updateRule(idx, {
-                          fieldId: e.target.value,
+                          fieldId: nextVal,
                           op: getDefaultOp(nextField),
                           value: '',
                           value2: '',
@@ -176,6 +191,7 @@ export default function FilterModal({
                         })
                       }}
                     >
+                      <option value="__entryDate">Entry Date</option>
                       {fields.map((f) => (
                         <option key={f.id} value={String(f.id)}>
                           {displayLabels[f.id] || f.name}
