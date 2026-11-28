@@ -47,7 +47,7 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '15mb' }));
 app.use(morgan(isProd ? 'combined' : 'dev'));
 
 // Root endpoint for Render uptime checks & service discovery

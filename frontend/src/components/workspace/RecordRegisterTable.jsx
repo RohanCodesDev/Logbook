@@ -723,6 +723,7 @@ function BlankEntryRow({
   allFields,
   entryDate,
   showSerial,
+  modelPrefill = null,
   onCreateRow,
   onOpenFullModal,
 }) {
@@ -771,6 +772,14 @@ function BlankEntryRow({
         clean[key] = Number.isNaN(n) ? val : n
       } else {
         clean[key] = val
+      }
+    }
+    if (modelPrefill?.value) {
+      if (modelPrefill.fieldId) {
+        const mKey = String(modelPrefill.fieldId)
+        if (!clean[mKey]) clean[mKey] = modelPrefill.value
+      } else if (!clean.__model) {
+        clean.__model = modelPrefill.value
       }
     }
     return clean
@@ -1006,6 +1015,8 @@ function BlankEntryRow({
               >
                 {val !== '' && val !== undefined ? (
                   formatDisplayValue(f, val)
+                ) : modelPrefill?.fieldId && f.id === modelPrefill.fieldId && modelPrefill.value ? (
+                  <span className="text-[#C97814]/80 font-medium">{modelPrefill.value}</span>
                 ) : f.id === firstEditableFieldId ? (
                   <span className="inline-flex items-center gap-1 text-xs text-slate-400/85 group-hover/blank:text-[#C97814] transition-colors">
                     <Plus className="w-3 h-3" />
@@ -1308,6 +1319,7 @@ export default function RecordRegisterTable({
   section,
   records,
   loading,
+  modelPrefill = null,
   onAddEntry,
   onEditEntry,
   onDuplicateRecord,
@@ -2156,7 +2168,7 @@ export default function RecordRegisterTable({
                               key={rec.id}
                               record={rec}
                               index={idx}
-                              showSerial={false}
+                              showSerial={true}
                               fields={visibleFields}
                               displayLabels={displayLabels}
                               onEdit={onEditEntry}
@@ -2241,7 +2253,7 @@ export default function RecordRegisterTable({
                       <th className="group/sel sticky left-0 z-20 bg-[var(--bg-input)] px-2 py-2.5 w-11 text-center border-r border-[var(--border-grid)] text-slate-700 text-xs sm:text-[13px] font-bold uppercase tracking-wide tabular-nums">
                         {processedRecords.length > 0 ? (
                           <div className="flex items-center justify-center">
-                            {!groupByDate && selectedIds.size === 0 && (
+                            {selectedIds.size === 0 && (
                               <span className="group-hover/sel:hidden">SL</span>
                             )}
                             <input
@@ -2252,14 +2264,12 @@ export default function RecordRegisterTable({
                               className={`no-print w-3.5 h-3.5 rounded border-slate-300 text-[#E08A1E] accent-[#E08A1E] cursor-pointer ${
                                 selectedIds.size > 0
                                   ? 'block'
-                                  : groupByDate
-                                    ? 'opacity-30 group-hover/sel:opacity-100 transition-opacity'
-                                    : 'hidden group-hover/sel:block'
+                                  : 'hidden group-hover/sel:block'
                               }`}
                             />
                           </div>
                         ) : (
-                          !groupByDate ? 'SL' : ''
+                          'SL'
                         )}
                       </th>
 
@@ -2377,7 +2387,7 @@ export default function RecordRegisterTable({
                                   } group-hover:bg-[#FEF6E9]`}
                                 >
                                   <div className="flex items-center justify-center">
-                                    {!groupByDate && !isSelected && (
+                                    {!isSelected && (
                                       <span className={selectedIds.size > 0 ? 'hidden' : 'group-hover:hidden'}>
                                         {String(idx + 1).padStart(2, '0')}
                                       </span>
@@ -2390,9 +2400,7 @@ export default function RecordRegisterTable({
                                       className={`no-print w-3.5 h-3.5 rounded border-slate-300 text-[#E08A1E] accent-[#E08A1E] cursor-pointer ${
                                         isSelected || selectedIds.size > 0
                                           ? 'block'
-                                          : groupByDate
-                                            ? 'opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity'
-                                            : 'hidden group-hover:block'
+                                          : 'hidden group-hover:block'
                                       }`}
                                     />
                                   </div>
@@ -2474,7 +2482,8 @@ export default function RecordRegisterTable({
                               fields={visibleFields}
                               allFields={fields}
                               entryDate={group.dateKey}
-                              showSerial={!groupByDate}
+                              showSerial={true}
+                              modelPrefill={modelPrefill}
                               onCreateRow={quickCreateHandler}
                               onOpenFullModal={() => onAddEntry(group.dateKey)}
                             />

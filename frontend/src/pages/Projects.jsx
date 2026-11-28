@@ -10,15 +10,19 @@ import { Magnetic } from '../components/ui/Magnetic'
 import { useToast } from '../components/ui/Toast'
 import { useTopBar } from '../components/layout/AppLayout'
 import { getProjects, createProject, updateProject, deleteProject } from '../services/api'
+import { useCachedQuery, invalidateQueryCache } from '../utils/queryCache'
 
 export default function Projects() {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { setTopBar, clearTopBar } = useTopBar()
 
-  const [projects, setProjects]         = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState(null)
+  const { data: projectsData, setData: setProjects, loading, refreshing, error, reload } = useCachedQuery(
+    'projects',
+    getProjects
+  )
+  const projects = projectsData ?? []
+
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
@@ -30,20 +34,7 @@ export default function Projects() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deletingId, setDeletingId]     = useState(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await getProjects()
-      setProjects(res.data ?? [])
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
+  const load = useCallback(() => reload(), [reload])
 
   const openCreateModal = useCallback(() => {
     setEditingProject(null)
@@ -57,8 +48,8 @@ export default function Projects() {
       actions: (
         <>
           <Magnetic strength={0.18}>
-            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <Button variant="outline" size="sm" onClick={load} disabled={loading || refreshing}>
+              <RefreshCw className={`w-3.5 h-3.5 ${loading || refreshing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
           </Magnetic>
@@ -72,7 +63,7 @@ export default function Projects() {
       ),
     })
     return () => clearTopBar()
-  }, [setTopBar, clearTopBar, load, loading, openCreateModal])
+  }, [setTopBar, clearTopBar, load, loading, refreshing, openCreateModal])
 
   const filtered = projects.filter((p) => {
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter
@@ -95,17 +86,19 @@ export default function Projects() {
     if (editingProject) {
       const res = await updateProject(editingProject.id, payload)
       setProjects((prev) =>
-        prev.map((p) =>
+        (prev || []).map((p) =>
           p.id === editingProject.id
             ? { ...res.data, sectionCount: p.sectionCount, recordCount: p.recordCount }
             : p
         )
       )
+      invalidateQueryCache()
       showToast(`Updated "${res.data.name}"`)
     } else {
       const res = await createProject(payload)
-      setProjects((prev) => [res.data, ...prev])
-      showToast(`Created project "${res.data.name}"`)
+      setProjects((prev) => [res.data, ...(prev || [])])
+      invalidateQueryCache()
+      showToast(`Created "${res.data.name}" & linked agreement`)
     }
   }
 
@@ -114,7 +107,8 @@ export default function Projects() {
     setDeletingId(deleteTarget.id)
     try {
       await deleteProject(deleteTarget.id)
-      setProjects((prev) => prev.filter((p) => p.id !== deleteTarget.id))
+      setProjects((prev) => (prev || []).filter((p) => p.id !== deleteTarget.id))
+      invalidateQueryCache()
       showToast(`Deleted "${deleteTarget.name}"`)
       setDeleteTarget(null)
     } catch (err) {

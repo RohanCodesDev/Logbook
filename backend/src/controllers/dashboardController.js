@@ -1,68 +1,5 @@
 import pool from '../db/index.js';
-
-const CURRENCY_NAME_RE = /\b(rate|amount|price|cost|bill|wage|salary|fee|total|budget|spend|expense|payable)\b/i;
-const PRIMARY_TOTAL_NAME_RE = /\b(amount|total|cost|spend|expense|bill|payable|net)\b/i;
-
-function parseNumeric(raw) {
-  if (raw === undefined || raw === null || raw === '') return null;
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
-  const cleaned = String(raw).replace(/[₹,\s]/g, '').trim();
-  if (!cleaned) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
-
-function evalFieldNumeric(field, rowData, fieldById, visited = new Set()) {
-  if (!field || !rowData) return null;
-  if (field.field_type !== 'formula') {
-    return parseNumeric(rowData[String(field.id)]);
-  }
-  if (!field.formula || visited.has(field.id)) return null;
-  const { leftFieldId, operator = 'mul', rightFieldId } = field.formula;
-  const leftField = fieldById.get(Number(leftFieldId));
-  const rightField = fieldById.get(Number(rightFieldId));
-  if (!leftField || !rightField) return null;
-
-  const nextVisited = new Set(visited);
-  nextVisited.add(field.id);
-
-  const l = evalFieldNumeric(leftField, rowData, fieldById, nextVisited);
-  const r = evalFieldNumeric(rightField, rowData, fieldById, nextVisited);
-  if (l === null || r === null) return null;
-
-  switch (operator) {
-    case 'add': return l + r;
-    case 'sub': return l - r;
-    case 'div': return r === 0 ? null : l / r;
-    case 'mul':
-    default:    return l * r;
-  }
-}
-
-function pickSpendField(fields = []) {
-  const formulaCurrency = fields.filter(
-    (f) => f.field_type === 'formula' && f.formula?.format === 'currency'
-  );
-  if (formulaCurrency.length) {
-    return formulaCurrency.find((f) => PRIMARY_TOTAL_NAME_RE.test(f.name)) || formulaCurrency[0];
-  }
-
-  const totalNamed = fields.find(
-    (f) =>
-      PRIMARY_TOTAL_NAME_RE.test(f.name) &&
-      (f.field_type === 'currency' || f.field_type === 'number' || f.field_type === 'formula' || f.field_type === 'text')
-  );
-  if (totalNamed) return totalNamed;
-
-  const anyCurrency = fields.find((f) => f.field_type === 'currency');
-  if (anyCurrency) return anyCurrency;
-
-  return fields.find(
-    (f) =>
-      CURRENCY_NAME_RE.test(f.name) &&
-      (f.field_type === 'number' || f.field_type === 'text' || f.field_type === 'formula')
-  ) || null;
-}
+import { evalFieldNumeric, pickSpendField, pickEntryLabel } from '../utils/spendCalculator.js';
 
 function buildLastNDaysKeys(todayStr, days = 14) {
   const [y, m, d] = todayStr.split('-').map(Number);
@@ -150,7 +87,12 @@ export const getDashboardStats = async (req, res, next) => {
         SELECT
           p.id, p.name, p.location, p.client, p.status, p.start_date, p.created_at, p.updated_at,
           COUNT(DISTINCT ps.id) AS section_count,
-          COUNT(DISTINCT sr.id) AS record_count
+          COUNT(DISTINCT sr.id) AS record_count,
+          COALESCE((
+            SELECT SUM(a.contract_value)
+            FROM agreements a
+            WHERE a.project_id = p.id AND a.status NOT IN ('terminated', 'expired')
+          ), 0)::numeric AS budget
         FROM projects p
         LEFT JOIN project_sections ps ON ps.project_id = p.id
         LEFT JOIN section_records sr  ON sr.section_id = ps.id
@@ -203,16 +145,7 @@ export const getDashboardStats = async (req, res, next) => {
         const sec = sectionById.get(rec.section_id);
         const proj = sec ? projectById.get(sec.project_id) : null;
         const secFields = fieldsBySection.get(rec.section_id) || [];
-        let entryLabel = '';
-        for (const f of secFields) {
-          if (spendField && f.id === spendField.id) continue;
-          if (f.field_type !== 'text' && f.field_type !== 'select') continue;
-          const raw = rec.data?.[String(f.id)];
-          if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
-            entryLabel = String(raw).trim();
-            break;
-          }
-        }
+        const entryLabel = pickEntryLabel(secFields, rec.data, spendField);
         if (proj && sec) {
           recentEntries.push({
             id:             rec.id,
@@ -318,6 +251,7 @@ export const getDashboardStats = async (req, res, next) => {
           startDate:    r.start_date ? r.start_date.toISOString().split('T')[0] : null,
           sectionCount: parseInt(r.section_count, 10),
           recordCount:  parseInt(r.record_count, 10),
+          budget:       Math.round(Number(r.budget || 0) * 100) / 100,
           totalSpend:   Math.round((spendByProject.get(r.id) || 0) * 100) / 100,
           createdAt:    r.created_at,
           updatedAt:    r.updated_at,

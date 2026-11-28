@@ -45,10 +45,16 @@ export async function runMigrations() {
         name        VARCHAR(255) NOT NULL,
         description TEXT,
         icon        VARCHAR(50)  NOT NULL DEFAULT 'folder',
+        models      JSONB        NOT NULL DEFAULT '[]'::jsonb,
         sort_order  INTEGER      NOT NULL DEFAULT 0,
         created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
         updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE project_sections
+      ADD COLUMN IF NOT EXISTS models JSONB NOT NULL DEFAULT '[]'::jsonb;
     `);
 
     // 4. Custom Fields table (schema per section)
@@ -93,7 +99,7 @@ export async function runMigrations() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS crew_members (
         id              SERIAL PRIMARY KEY,
-        name            VARCHAR(255) NOT NULL,
+        name            VARCHAR(255) DEFAULT '',
         role            VARCHAR(50)  NOT NULL DEFAULT 'driver',
         phone           VARCHAR(50),
         vehicle_machine VARCHAR(255),
@@ -109,13 +115,22 @@ export async function runMigrations() {
       );
     `);
 
+    await client.query(`
+      ALTER TABLE crew_members
+      ALTER COLUMN name DROP NOT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE crew_members
+      ALTER COLUMN name SET DEFAULT '';
+    `);
+
     // 7. Agreements & Contracts table
     await client.query(`
       CREATE TABLE IF NOT EXISTS agreements (
         id              SERIAL PRIMARY KEY,
         title           VARCHAR(255) NOT NULL,
         agreement_type  VARCHAR(80)  NOT NULL DEFAULT 'subcontract',
-        party_name      VARCHAR(255) NOT NULL,
+        party_name      VARCHAR(255) DEFAULT '',
         party_phone     VARCHAR(50),
         project_id      INTEGER      REFERENCES projects(id) ON DELETE SET NULL,
         start_date      DATE,
@@ -125,12 +140,64 @@ export async function runMigrations() {
         reference_no    VARCHAR(100),
         status          VARCHAR(40)  NOT NULL DEFAULT 'active',
         notes           TEXT,
+        clauses         TEXT,
         created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
         updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
     `);
 
-    // 8. Attach updated_at triggers safely
+    await client.query(`
+      ALTER TABLE agreements
+      ALTER COLUMN party_name DROP NOT NULL;
+    `);
+    await client.query(`
+      ALTER TABLE agreements
+      ALTER COLUMN party_name SET DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE agreements
+      ADD COLUMN IF NOT EXISTS clauses TEXT;
+    `);
+
+    // 8. Agreement Photo / Scan Attachments table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS agreement_attachments (
+        id           SERIAL PRIMARY KEY,
+        agreement_id INTEGER      NOT NULL REFERENCES agreements(id) ON DELETE CASCADE,
+        file_name    VARCHAR(255) NOT NULL DEFAULT 'agreement-photo.jpg',
+        mime_type    VARCHAR(100) NOT NULL DEFAULT 'image/jpeg',
+        caption      VARCHAR(255),
+        data_url     TEXT         NOT NULL,
+        file_size    INTEGER      NOT NULL DEFAULT 0,
+        source       VARCHAR(30)  NOT NULL DEFAULT 'upload',
+        sort_order   INTEGER      NOT NULL DEFAULT 0,
+        created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_agreements_project_id ON agreements(project_id);
+      CREATE INDEX IF NOT EXISTS idx_agreement_attachments_agreement_id ON agreement_attachments(agreement_id);
+    `);
+
+    // Backfill an agreement for any existing project that does not have one yet
+    await client.query(`
+      INSERT INTO agreements (title, agreement_type, party_name, project_id, start_date, status, notes)
+      SELECT
+        p.name,
+        'client',
+        COALESCE(NULLIF(TRIM(p.client), ''), ''),
+        p.id,
+        p.start_date,
+        'active',
+        p.description
+      FROM projects p
+      WHERE NOT EXISTS (
+        SELECT 1 FROM agreements a WHERE a.project_id = p.id
+      );
+    `);
+
+    // 9. Attach updated_at triggers safely
     const triggerTables = ['projects', 'project_sections', 'section_records', 'crew_members', 'agreements'];
     for (const table of triggerTables) {
       const triggerName = `${table}_updated_at`;

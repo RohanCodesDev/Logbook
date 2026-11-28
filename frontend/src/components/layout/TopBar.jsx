@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, Link } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, Menu, Pencil } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Menu, Pencil, Plus } from 'lucide-react'
+import Button from '../ui/Button'
+import { Magnetic } from '../ui/Magnetic'
 
 const routeLabels = {
   '/':           'Dashboard',
@@ -11,10 +13,18 @@ const routeLabels = {
   '/settings':   'Settings',
 }
 
-export default function TopBar({ actions = null, customTitle = null, onRenameTitle = null, onOpenMenu }) {
+export default function TopBar({ actions = null, customTitle = null, onRenameTitle = null, onOpenMenu, onOpenQuickLog }) {
   const location = useLocation()
   const isWorkspace = location.pathname.startsWith('/projects/')
-  const currentLabel = customTitle || (isWorkspace ? 'Project Workspace' : routeLabels[location.pathname] ?? 'Overview')
+  const isAgreementDetail = location.pathname.startsWith('/agreements/')
+  const isDetailPage = isWorkspace || isAgreementDetail
+  const currentLabel =
+    customTitle ||
+    (isWorkspace
+      ? 'Project Workspace'
+      : isAgreementDetail
+        ? 'Agreement Section'
+        : routeLabels[location.pathname] ?? 'Overview')
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(currentLabel)
@@ -50,7 +60,7 @@ export default function TopBar({ actions = null, customTitle = null, onRenameTit
     <header className="sticky top-0 z-20 flex items-center justify-between gap-3 h-14 sm:h-16 px-4 sm:px-6 lg:px-8 liquid-glass-light">
       {/* Left: Menu trigger on mobile + Minimal Breadcrumb */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        {!isWorkspace && (
+        {!isDetailPage && (
           <button
             type="button"
             onClick={onOpenMenu}
@@ -61,11 +71,11 @@ export default function TopBar({ actions = null, customTitle = null, onRenameTit
           </button>
         )}
 
-        {isWorkspace && (
+        {isDetailPage && (
           <Link
-            to="/projects"
+            to={isWorkspace ? '/projects' : '/agreements'}
             className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--bg-input)] text-slate-600 hover:bg-[#E6E1D6] hover:text-[var(--text-primary)] transition-colors flex-shrink-0"
-            title="Back to Your Projects"
+            title={isWorkspace ? 'Back to Your Projects' : 'Back to Agreements'}
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
@@ -74,13 +84,13 @@ export default function TopBar({ actions = null, customTitle = null, onRenameTit
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm min-w-0 flex-1">
           <span className="text-slate-400 font-medium hidden sm:inline">Workspace</span>
           <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:inline flex-shrink-0" />
-          {isWorkspace && (
+          {isDetailPage && (
             <>
               <Link
-                to="/projects"
+                to={isWorkspace ? '/projects' : '/agreements'}
                 className="text-slate-500 hover:text-slate-900 font-medium transition-colors hidden sm:inline"
               >
-                Projects
+                {isWorkspace ? 'Projects' : 'Agreements'}
               </Link>
               <ChevronRight className="w-3.5 h-3.5 text-slate-300 hidden sm:inline flex-shrink-0" />
             </>
@@ -109,7 +119,7 @@ export default function TopBar({ actions = null, customTitle = null, onRenameTit
                 setDraft(currentLabel)
                 setEditing(true)
               }}
-              title="Click to rename project"
+              title="Click to rename"
               className="group inline-flex items-center gap-1.5 text-base font-bold text-slate-900 hover:text-[#C97814] truncate rounded-lg px-1.5 py-0.5 -ml-1.5 hover:bg-[var(--bg-input)]/70 transition-colors min-w-0"
             >
               <span className="truncate">{currentLabel}</span>
@@ -121,12 +131,18 @@ export default function TopBar({ actions = null, customTitle = null, onRenameTit
         </nav>
       </div>
 
-      {/* Right: Contextual Page Actions */}
-      {actions && (
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {actions}
-        </div>
-      )}
+      {/* Right: Contextual Page Actions + Global + Log Spend */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {actions}
+        {onOpenQuickLog && !isDetailPage && (
+          <Magnetic strength={0.18}>
+            <Button variant="obsidian" size="sm" onClick={onOpenQuickLog}>
+              <Plus className="w-4 h-4 text-amber-400" />
+              <span>Log Spend</span>
+            </Button>
+          </Magnetic>
+        )}
+      </div>
     </header>
   )
 }

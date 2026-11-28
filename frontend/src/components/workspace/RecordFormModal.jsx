@@ -22,6 +22,8 @@ export default function RecordFormModal({
   section,
   initialRecord = null,
   defaultEntryDate = null,
+  modelFieldId = null,
+  defaultModelValue = '',
   onSubmit,
   onDuplicate,
   onDelete,
@@ -44,6 +46,8 @@ export default function RecordFormModal({
       const existing = initialRecord?.data?.[key]
       if (existing !== undefined) {
         init[key] = existing
+      } else if (modelFieldId && String(f.id) === String(modelFieldId) && defaultModelValue) {
+        init[key] = defaultModelValue
       } else if (f.fieldType === 'checkbox') {
         init[key] = false
       } else if (f.fieldType === 'date') {
@@ -123,6 +127,8 @@ export default function RecordFormModal({
             const key = String(f.id)
             if (f.fieldType === 'date') {
               reset[key] = prev[key] || entryDate || getTodayYmd()
+            } else if (modelFieldId && String(f.id) === String(modelFieldId) && defaultModelValue) {
+              reset[key] = defaultModelValue
             } else if (f.fieldType === 'checkbox') {
               reset[key] = false
             } else {

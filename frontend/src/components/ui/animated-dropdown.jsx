@@ -4,16 +4,8 @@ import { ChevronDown, Check } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
-const MENU_VARIANTS = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.03 },
-  },
-}
-
 const ITEM_VARIANTS = {
-  hidden: { opacity: 0, x: -12 },
+  hidden: { opacity: 1, x: 0 },
   visible: { opacity: 1, x: 0 },
 }
 
@@ -60,10 +52,13 @@ export function AnimatedPortalMenu({
   onMenuClick,
 }) {
   const menuRef = useRef(null)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: widthPx })
+  const [pos, setPos] = useState(null)
 
   useLayoutEffect(() => {
-    if (!open || !anchorRef?.current) return
+    if (!open || !anchorRef?.current) {
+      setPos(null)
+      return
+    }
     const updatePosition = () => {
       const rect = anchorRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -124,28 +119,22 @@ export function AnimatedPortalMenu({
 
   return createPortal(
     <AnimatePresence>
-      {open && (
+      {open && pos && (
         <motion.div
           ref={menuRef}
           role="listbox"
-          initial={{ opacity: 0, y: -8, scale: 0.96 }}
+          initial={{ opacity: 0, y: -4, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -8, scale: 0.96 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-          style={{ top: pos.top, left: pos.left, width: pos.width }}
+          exit={{ opacity: 0, y: -4, scale: 0.98 }}
+          transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+          style={{ top: pos.top, left: pos.left, width: pos.width, transformOrigin: 'top center' }}
           onClick={onMenuClick}
           className={cn(
             'fixed z-[9999] overflow-hidden rounded-xl bg-[var(--bg-card)] border border-[var(--border-subtle)] shadow-2xl py-1 max-h-72 overflow-y-auto',
             className
           )}
         >
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={MENU_VARIANTS}
-          >
-            {children}
-          </motion.div>
+          {children}
         </motion.div>
       )}
     </AnimatePresence>,

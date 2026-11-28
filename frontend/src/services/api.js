@@ -19,7 +19,14 @@ async function request(url, options = {}) {
 // ─── Dashboard & Reports & Health ────────────────────────────────────────────
 
 export const getDashboard = () => request('/dashboard');
-export const getReports   = () => request('/reports');
+export const getReports   = (params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.range) qs.set('range', params.range);
+  if (params.from)  qs.set('from', params.from);
+  if (params.to)    qs.set('to', params.to);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return request(`/reports${suffix}`);
+};
 export const getHealth    = () => request('/health');
 
 // ─── Projects ────────────────────────────────────────────────────────────────
@@ -57,10 +64,29 @@ export const getCrewMembers   = ()            => request('/crew');
 export const createCrewMember = (payload)     => request('/crew', { method: 'POST', body: JSON.stringify(payload) });
 export const updateCrewMember = (id, payload) => request(`/crew/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 export const deleteCrewMember = (id)          => request(`/crew/${id}`, { method: 'DELETE' });
+export const logCrewWages     = (payload)     => request('/crew/log-wages', { method: 'POST', body: JSON.stringify(payload) });
 
 // ─── Agreements ──────────────────────────────────────────────────────────────
 
 export const getAgreements   = ()            => request('/agreements');
+export const getAgreement    = (id)          => request(`/agreements/${id}`);
 export const createAgreement = (payload)     => request('/agreements', { method: 'POST', body: JSON.stringify(payload) });
 export const updateAgreement = (id, payload) => request(`/agreements/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 export const deleteAgreement = (id)          => request(`/agreements/${id}`, { method: 'DELETE' });
+
+export const addAgreementAttachments = (agreementId, attachments) =>
+  request(`/agreements/${agreementId}/attachments`, {
+    method: 'POST',
+    body: JSON.stringify({ attachments }),
+  });
+
+export const updateAgreementAttachment = (agreementId, attachmentId, payload) =>
+  request(`/agreements/${agreementId}/attachments/${attachmentId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+
+export const deleteAgreementAttachment = (agreementId, attachmentId) =>
+  request(`/agreements/${agreementId}/attachments/${attachmentId}`, {
+    method: 'DELETE',
+  });

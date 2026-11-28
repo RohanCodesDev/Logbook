@@ -1,6 +1,11 @@
-import { ExternalLink, Pencil, Share2, Trash2, MapPin, Layers, Clock, Loader2, User } from 'lucide-react'
+import { ExternalLink, Pencil, Share2, Trash2, MapPin, Layers, Clock, Loader2, IndianRupee } from 'lucide-react'
 import Badge from '../ui/Badge'
 import ActionMenu from '../ui/ActionMenu'
+
+function formatInrCompact(val) {
+  const num = Number(val || 0)
+  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+}
 
 export function formatUpdatedDate(isoDate, fallbackDate) {
   const raw = isoDate || fallbackDate
@@ -75,9 +80,12 @@ export function ProjectCard({ project, onView, onEdit, onShare, onDelete, deleti
           <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
           <span className="truncate capitalize">{project.location || 'No location'}</span>
         </span>
-        <span className="inline-flex items-center gap-1.5 truncate">
-          <User className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-          <span className="truncate">{project.client || 'No client'}</span>
+        <span className="inline-flex items-center gap-1.5 tabular-nums">
+          <IndianRupee className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+          <span className="truncate font-semibold text-zinc-800">
+            {formatInrCompact(project.loggedSpend)}
+            {project.budget > 0 ? ` / ${formatInrCompact(project.budget)}` : ''}
+          </span>
         </span>
         <span className="inline-flex items-center gap-1.5 tabular-nums">
           <Layers className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
@@ -133,11 +141,18 @@ export default function ProjectRow({
         </span>
       </td>
 
-      {/* Client */}
+      {/* Logged Spend vs Budget */}
       <td className="px-4 py-4 hidden lg:table-cell">
-        <span className="text-sm text-slate-600 truncate block max-w-[180px]">
-          {project.client || '—'}
-        </span>
+        <div className="tabular-nums">
+          <span className={`text-sm font-semibold ${project.loggedSpend > 0 ? 'text-zinc-900' : 'text-zinc-400 font-normal'}`}>
+            {formatInrCompact(project.loggedSpend)}
+          </span>
+          {project.budget > 0 && (
+            <span className="text-xs text-zinc-400 ml-1">
+              / {formatInrCompact(project.budget)}
+            </span>
+          )}
+        </div>
       </td>
 
       {/* Status */}

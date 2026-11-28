@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   HardHat, AlertTriangle, Clock, FolderOpen,
@@ -10,6 +10,7 @@ import Button from '../components/ui/Button'
 import { Magnetic } from '../components/ui/Magnetic'
 import { useTopBar } from '../components/layout/AppLayout'
 import { getDashboard } from '../services/api'
+import { useCachedQuery } from '../utils/queryCache'
 
 function formatInr(val) {
   const num = Number(val || 0)
@@ -264,9 +265,16 @@ function RecentProjectRow({ project }) {
       </div>
 
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <span className={`text-xs sm:text-sm font-bold tabular-nums ${project.totalSpend > 0 ? 'text-zinc-900' : 'text-zinc-400 font-medium'}`}>
-          {project.totalSpend > 0 ? formatInr(project.totalSpend) : '₹0'}
-        </span>
+        <div className="text-right">
+          <span className={`text-xs sm:text-sm font-bold tabular-nums ${project.totalSpend > 0 ? 'text-zinc-900' : 'text-zinc-400 font-medium'}`}>
+            {project.totalSpend > 0 ? formatInr(project.totalSpend) : '₹0'}
+          </span>
+          {project.budget > 0 && (
+            <span className="text-[11px] text-zinc-400 tabular-nums ml-1">
+              / {formatCompactInr(project.budget)}
+            </span>
+          )}
+        </div>
         <Badge status={project.status} />
       </div>
     </Link>
@@ -275,24 +283,8 @@ function RecentProjectRow({ project }) {
 
 export default function Dashboard() {
   const { setTopBar, clearTopBar } = useTopBar()
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await getDashboard()
-      setData(res.data)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
+  const { data, loading, refreshing, error, reload } = useCachedQuery('dashboard', getDashboard)
+  const load = useCallback(() => reload(), [reload])
 
   const s = data?.stats ?? {}
   const crew = data?.crew ?? {}
@@ -301,33 +293,20 @@ export default function Dashboard() {
   const recent = data?.recentProjects ?? []
   const recentEntries = data?.recentEntries ?? []
 
-  const primaryCtaTarget = recent.length > 0 ? `/projects/${recent[0].id}` : '/projects'
-  const primaryCtaLabel = recent.length > 0 ? 'Log Spend' : 'New Project'
-
   useEffect(() => {
     setTopBar({
       title: 'Dashboard',
       actions: (
-        <>
-          <Magnetic strength={0.18}>
-            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
-          </Magnetic>
-          <Magnetic strength={0.18}>
-            <Link to={primaryCtaTarget}>
-              <Button variant="obsidian" size="sm">
-                <Plus className="w-4 h-4" />
-                {primaryCtaLabel}
-              </Button>
-            </Link>
-          </Magnetic>
-        </>
+        <Magnetic strength={0.18}>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading || refreshing}>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading || refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+        </Magnetic>
       ),
     })
     return () => clearTopBar()
-  }, [setTopBar, clearTopBar, load, loading, primaryCtaTarget, primaryCtaLabel])
+  }, [setTopBar, clearTopBar, load, loading, refreshing])
 
   const kpiSegments = [
     {
@@ -355,7 +334,9 @@ export default function Dashboard() {
         ? 'No agreements yet'
         : agr.expiringSoon > 0
           ? `${agr.active ?? 0} active · ${agr.expiringSoon} due ≤15d`
-          : `${agr.active ?? 0} active · ${formatCompactInr(agr.activeValue)}`,
+          : Number(agr.activeValue || 0) > 0
+            ? `${agr.active ?? 0} active · ${formatCompactInr(agr.activeValue)}`
+            : `${agr.active ?? 0} active · Add budget`,
       icon: ScrollText,
     },
     {
@@ -644,7 +625,7 @@ export default function Dashboard() {
                     ) : (
                       <>
                         <p className="text-sm font-semibold text-zinc-900 mt-0.5 tabular-nums truncate">
-                          {agr.active ?? 0} active · {formatInr(agr.activeValue)}
+                          {agr.active ?? 0} active · {Number(agr.activeValue || 0) > 0 ? formatInr(agr.activeValue) : 'Add budget'}
                         </p>
                         <p className={`text-xs tabular-nums mt-0.5 ${agr.expiringSoon > 0 ? 'text-red-600 font-semibold' : 'text-zinc-500'}`}>
                           {agr.expiringSoon > 0

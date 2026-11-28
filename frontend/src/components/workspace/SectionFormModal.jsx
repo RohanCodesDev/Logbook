@@ -62,6 +62,23 @@ const SHEET_TEMPLATES = [
     ],
   },
   {
+    id: 'hyva',
+    label: 'Hyva / Tipper Log',
+    hint: 'Hyva · Trips × Rate = Total',
+    defaultName: 'Hyvas',
+    fields: [
+      { name: 'Hyva', fieldType: 'text', isRequired: true },
+      { name: 'Trips', fieldType: 'number' },
+      { name: 'Rate', fieldType: 'currency' },
+      {
+        name: 'Total',
+        fieldType: 'formula',
+        formulaRef: { leftIndex: 1, operator: 'mul', rightIndex: 2, format: 'currency' },
+      },
+      { name: 'Driver', fieldType: 'text' },
+    ],
+  },
+  {
     id: 'labour',
     label: 'Labour Log',
     hint: 'Team · Count × Wage = Total',

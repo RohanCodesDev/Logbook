@@ -1,15 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Plus, Layers,
-  AlertTriangle, Loader2, ArrowLeft
+  AlertTriangle, Loader2, ArrowLeft, ScrollText, Building2
 } from 'lucide-react'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
+import { Magnetic } from '../components/ui/Magnetic'
 import EmptyState from '../components/ui/EmptyState'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import ProjectFormModal from '../components/project/ProjectFormModal'
 import SectionTabs from '../components/workspace/SectionTabs'
+import ModelSelectorDropdown from '../components/workspace/ModelSelectorDropdown'
 import SectionFormModal from '../components/workspace/SectionFormModal'
 import CustomFieldBuilderModal from '../components/workspace/CustomFieldBuilderModal'
 import RecordFormModal from '../components/workspace/RecordFormModal'
@@ -22,6 +24,11 @@ import {
   createField, reorderFields, updateField, deleteField,
   getRecords, createRecord, updateRecord, deleteRecord,
 } from '../services/api'
+import { invalidateQueryCache } from '../utils/queryCache'
+
+const FLEET_SHEET_RE = /\b(machines?|machinery|equipments?|hyvas?|tippers?|dumpers?|vehicles?|trucks?|excavators?|loaders?|cranes?|rollers?|jcb|fleet)\b/i
+const HYVA_SHEET_RE = /\b(hyvas?|tippers?|dumpers?|trucks?)\b/i
+const MODEL_FIELD_RE = /\b(model|machine|hyva|vehicle|equipment|tipper|dumper|truck)\b/i
 
 /**
  * ProjectWorkspace — Independent workspace for a single project.
@@ -55,8 +62,93 @@ export default function ProjectWorkspace() {
   const [editingRecord, setEditingRecord]           = useState(null)
   const [defaultEntryDate, setDefaultEntryDate]     = useState(null)
   const [deletingRecordId, setDeletingRecordId]     = useState(null)
+  const [selectedModel, setSelectedModel]           = useState('')
 
   const activeSection = sections.find((s) => s.id === activeId) || null
+
+  const isHyvaSheet = HYVA_SHEET_RE.test(activeSection?.name || '')
+
+  const modelField = useMemo(() => {
+    const flds = activeSection?.fields || []
+    return (
+      flds.find(
+        (f) => (f.fieldType === 'text' || f.fieldType === 'select') && MODEL_FIELD_RE.test(f.name || '')
+      ) || null
+    )
+  }, [activeSection])
+
+  const isFleetSheet = useMemo(() => {
+    if (!activeSection) return false
+    return (
+      FLEET_SHEET_RE.test(activeSection.name || '') ||
+      (activeSection.models?.length || 0) > 0 ||
+      Boolean(modelField)
+    )
+  }, [activeSection, modelField])
+
+  const getRecordModelValue = useCallback((rec) => {
+    if (!rec?.data) return ''
+    if (modelField) {
+      const v = rec.data[String(modelField.id)]
+      if (v !== undefined && v !== null && String(v).trim() !== '') {
+        return String(v).trim()
+      }
+    }
+    const fallback = rec.data.__model
+    return fallback ? String(fallback).trim() : ''
+  }, [modelField])
+
+  const { modelOptions, countsByModel } = useMemo(() => {
+    const counts = {}
+    const ordered = []
+    const seen = new Set()
+
+    const pushModel = (raw) => {
+      const clean = String(raw || '').trim()
+      if (!clean) return
+      if (!seen.has(clean.toLowerCase())) {
+        seen.add(clean.toLowerCase())
+        ordered.push(clean)
+      }
+    }
+
+    ;(activeSection?.models || []).forEach(pushModel)
+    ;(modelField?.options || []).forEach(pushModel)
+    records.forEach((rec) => {
+      const val = getRecordModelValue(rec)
+      if (val) {
+        pushModel(val)
+        const canonical = ordered.find((m) => m.toLowerCase() === val.toLowerCase()) || val
+        counts[canonical] = (counts[canonical] || 0) + 1
+      }
+    })
+
+    return { modelOptions: ordered, countsByModel: counts }
+  }, [activeSection?.models, modelField?.options, records, getRecordModelValue])
+
+  const filteredRecordsByModel = useMemo(() => {
+    if (!selectedModel || !isFleetSheet) return records
+    const targetLower = selectedModel.toLowerCase()
+    return records.filter((rec) => getRecordModelValue(rec).toLowerCase() === targetLower)
+  }, [records, selectedModel, isFleetSheet, getRecordModelValue])
+
+  const attachSelectedModel = useCallback((rawData = {}) => {
+    if (!selectedModel || !isFleetSheet) return rawData
+    const next = { ...rawData }
+    if (modelField) {
+      const key = String(modelField.id)
+      if (!next[key] || String(next[key]).trim() === '') {
+        next[key] = selectedModel
+      }
+    } else if (!next.__model) {
+      next.__model = selectedModel
+    }
+    return next
+  }, [selectedModel, isFleetSheet, modelField])
+
+  useEffect(() => {
+    setSelectedModel('')
+  }, [activeId])
 
   const loadWorkspace = useCallback(async () => {
     setLoadingPage(true)
@@ -79,11 +171,37 @@ export default function ProjectWorkspace() {
 
   useEffect(() => { loadWorkspace() }, [loadWorkspace])
 
-  // Sync TopBar breadcrumb with live project name & inline click-to-rename
+  // Sync TopBar breadcrumb with live project name, Agreement & Project Centre buttons, and inline click-to-rename
   useEffect(() => {
     if (!project) return
     setTopBar({
       title: project.name,
+      actions: (
+        <>
+          {project.agreementId && (
+            <Magnetic strength={0.18}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/agreements/${project.agreementId}`)}
+              >
+                <ScrollText className="w-3.5 h-3.5 text-[#D97706]" />
+                <span>Agreement</span>
+              </Button>
+            </Magnetic>
+          )}
+          <Magnetic strength={0.18}>
+            <Button
+              variant="obsidian"
+              size="sm"
+              onClick={() => setEditProjectOpen(true)}
+            >
+              <Building2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Project Centre</span>
+            </Button>
+          </Magnetic>
+        </>
+      ),
       onRenameTitle: async (nextName) => {
         try {
           const res = await updateProject(project.id, {
@@ -103,7 +221,7 @@ export default function ProjectWorkspace() {
       },
     })
     return () => clearTopBar()
-  }, [project, setTopBar, clearTopBar, showToast])
+  }, [project, setTopBar, clearTopBar, showToast, navigate])
 
   const loadRecords = useCallback(async (sectionId) => {
     if (!sectionId) {
@@ -128,6 +246,7 @@ export default function ProjectWorkspace() {
   const handleUpdateProject = async (payload) => {
     const res = await updateProject(project.id, payload)
     setProject((prev) => ({ ...prev, ...res.data }))
+    invalidateQueryCache()
     showToast('Project details updated')
   }
 
@@ -235,31 +354,35 @@ export default function ProjectWorkspace() {
   }
 
   const handleSaveRecord = async (data, entryDate) => {
+    const taggedData = attachSelectedModel(data)
     if (editingRecord) {
       const res = await updateRecord(editingRecord.id, data, entryDate)
       setRecords((prev) => prev.map((r) => (r.id === editingRecord.id ? res.data : r)))
+      invalidateQueryCache()
       showToast('Entry updated')
     } else {
-      const res = await createRecord(activeSection.id, data, entryDate)
+      const res = await createRecord(activeSection.id, taggedData, entryDate)
       setRecords((prev) => [...prev, res.data])
       setSections((prev) =>
         prev.map((s) =>
           s.id === activeSection.id ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
         )
       )
+      invalidateQueryCache()
       showToast('Entry saved')
     }
   }
 
   const handleDuplicateRecord = async (data, entryDate) => {
     try {
-      const res = await createRecord(activeSection.id, data, entryDate)
+      const res = await createRecord(activeSection.id, attachSelectedModel(data), entryDate)
       setRecords((prev) => [...prev, res.data])
       setSections((prev) =>
         prev.map((s) =>
           s.id === activeSection.id ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
         )
       )
+      invalidateQueryCache()
       showToast('Entry duplicated')
     } catch (err) {
       showToast(err.message, 'error')
@@ -269,18 +392,69 @@ export default function ProjectWorkspace() {
 
   const handleQuickCreateRecord = async (data = {}, entryDate = null) => {
     try {
-      const res = await createRecord(activeSection.id, data, entryDate)
+      const res = await createRecord(activeSection.id, attachSelectedModel(data), entryDate)
       setRecords((prev) => [...prev, res.data])
       setSections((prev) =>
         prev.map((s) =>
           s.id === activeSection.id ? { ...s, recordCount: (s.recordCount || 0) + 1 } : s
         )
       )
+      invalidateQueryCache()
       showToast('Row added')
       return res.data
     } catch (err) {
       showToast(err.message, 'error')
       throw err
+    }
+  }
+
+  const handleAddSectionModel = async (newModelName) => {
+    if (!activeSection) return
+    const clean = newModelName.trim()
+    if (!clean) return
+    const existingModels = activeSection.models || []
+    const already = modelOptions.find((m) => m.toLowerCase() === clean.toLowerCase())
+    if (already) {
+      setSelectedModel(already)
+      return
+    }
+    const nextModels = [...existingModels, clean]
+    try {
+      const res = await updateSection(activeSection.id, { models: nextModels })
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === activeSection.id
+            ? { ...s, models: res.data.models || nextModels }
+            : s
+        )
+      )
+      setSelectedModel(clean)
+      showToast(`Added "${clean}"`)
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+  }
+
+  const handleRemoveSectionModel = async (modelToRemove) => {
+    if (!activeSection) return
+    const nextModels = (activeSection.models || []).filter(
+      (m) => m.toLowerCase() !== modelToRemove.toLowerCase()
+    )
+    try {
+      const res = await updateSection(activeSection.id, { models: nextModels })
+      setSections((prev) =>
+        prev.map((s) =>
+          s.id === activeSection.id
+            ? { ...s, models: res.data.models || nextModels }
+            : s
+        )
+      )
+      if (selectedModel.toLowerCase() === modelToRemove.toLowerCase()) {
+        setSelectedModel('')
+      }
+      showToast(`Removed "${modelToRemove}"`)
+    } catch (err) {
+      showToast(err.message, 'error')
     }
   }
 
@@ -521,8 +695,22 @@ export default function ProjectWorkspace() {
             <SectionTabs
               sections={sections}
               activeSectionId={activeId}
+              activeFleetModelCount={isFleetSheet ? modelOptions.length : null}
               onSelect={(secId) => setActiveId(secId)}
               onAddSection={() => { setEditingSection(null); setSectionModalOpen(true) }}
+              rightSlot={
+                isFleetSheet ? (
+                  <ModelSelectorDropdown
+                    isHyva={isHyvaSheet}
+                    selectedModel={selectedModel}
+                    models={modelOptions}
+                    countsByModel={countsByModel}
+                    onSelectModel={setSelectedModel}
+                    onAddModel={handleAddSectionModel}
+                    onRemoveModel={handleRemoveSectionModel}
+                  />
+                ) : null
+              }
             />
           </div>
 
@@ -536,8 +724,13 @@ export default function ProjectWorkspace() {
               <RecordRegisterTable
                 projectName={project?.name || ''}
                 section={activeSection}
-                records={records}
+                records={filteredRecordsByModel}
                 loading={loadingRecords}
+                modelPrefill={
+                  isFleetSheet && selectedModel
+                    ? { fieldId: modelField?.id || null, value: selectedModel }
+                    : null
+                }
                 onAddEntry={(dateKey = null) => {
                   setEditingRecord(null)
                   setDefaultEntryDate(typeof dateKey === 'string' ? dateKey : null)
@@ -610,6 +803,8 @@ export default function ProjectWorkspace() {
         section={activeSection}
         initialRecord={editingRecord}
         defaultEntryDate={defaultEntryDate}
+        modelFieldId={modelField?.id || null}
+        defaultModelValue={isFleetSheet ? selectedModel : ''}
         onSubmit={handleSaveRecord}
         onDuplicate={(data, entryDate) => handleDuplicateRecord(data, entryDate)}
         onDelete={(rec) => {

@@ -3,11 +3,12 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import MobileBottomNav from './MobileBottomNav'
 import { ToastProvider } from '../ui/Toast'
+import GlobalQuickLogModal from '../workspace/GlobalQuickLogModal'
 
 const TopBarContext = createContext(null)
 
 /**
- * Allows any page to render contextual actions, custom breadcrumb title, or inline rename handler.
+ * Allows any page to render contextual actions, custom breadcrumb title, or open Global Quick-Log.
  */
 export function useTopBar() {
   const ctx = useContext(TopBarContext)
@@ -18,6 +19,7 @@ export function useTopBar() {
 export default function AppLayout({ children }) {
   const [headerMeta, setHeaderMeta]     = useState({ actions: null, title: null, onRenameTitle: null })
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [quickLogOpen, setQuickLogOpen]   = useState(false)
 
   const setTopBar = useCallback((meta) => {
     setHeaderMeta({
@@ -32,10 +34,11 @@ export default function AppLayout({ children }) {
   }, [])
 
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
+  const openQuickLog   = useCallback(() => setQuickLogOpen(true), [])
 
   return (
     <ToastProvider>
-      <TopBarContext.Provider value={{ setTopBar, clearTopBar }}>
+      <TopBarContext.Provider value={{ setTopBar, clearTopBar, openQuickLog }}>
         <div className="flex min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)]">
           <Sidebar open={mobileNavOpen} onClose={closeMobileNav} />
 
@@ -45,6 +48,7 @@ export default function AppLayout({ children }) {
               customTitle={headerMeta.title}
               onRenameTitle={headerMeta.onRenameTitle}
               onOpenMenu={() => setMobileNavOpen(true)}
+              onOpenQuickLog={openQuickLog}
             />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
               {children}
@@ -52,6 +56,7 @@ export default function AppLayout({ children }) {
           </div>
 
           <MobileBottomNav />
+          <GlobalQuickLogModal open={quickLogOpen} onClose={() => setQuickLogOpen(false)} />
         </div>
       </TopBarContext.Provider>
     </ToastProvider>

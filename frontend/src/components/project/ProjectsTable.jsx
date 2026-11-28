@@ -3,13 +3,13 @@ import EmptyState from '../ui/EmptyState'
 import { FolderOpen } from 'lucide-react'
 
 const columns = [
-  { label: 'Project Name', className: 'pl-6 pr-4' },
-  { label: 'Location',     className: 'px-4' },
-  { label: 'Client',       className: 'px-4 hidden lg:table-cell' },
-  { label: 'Status',       className: 'px-4' },
-  { label: 'Records',      className: 'px-4 hidden xl:table-cell' },
-  { label: 'Last Updated', className: 'px-4 hidden lg:table-cell' },
-  { label: '',             className: 'pl-4 pr-6 w-14 text-right' },
+  { label: 'Project Name',   className: 'pl-6 pr-4' },
+  { label: 'Location',       className: 'px-4' },
+  { label: 'Spend / Budget', className: 'px-4 hidden lg:table-cell' },
+  { label: 'Status',         className: 'px-4' },
+  { label: 'Records',        className: 'px-4 hidden xl:table-cell' },
+  { label: 'Last Updated',   className: 'px-4 hidden lg:table-cell' },
+  { label: '',               className: 'pl-4 pr-6 w-14 text-right' },
 ]
 
 /**

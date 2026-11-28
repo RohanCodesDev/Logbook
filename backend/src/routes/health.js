@@ -15,8 +15,9 @@ router.get('/', async (req, res) => {
         (SELECT COUNT(*)::int FROM project_sections) AS sections,
         (SELECT COUNT(*)::int FROM section_fields)   AS fields,
         (SELECT COUNT(*)::int FROM section_records)  AS records,
-        (SELECT COUNT(*)::int FROM crew_members)     AS crew,
-        (SELECT COUNT(*)::int FROM agreements)       AS agreements
+        (SELECT COUNT(*)::int FROM crew_members)          AS crew,
+        (SELECT COUNT(*)::int FROM agreements)            AS agreements,
+        (SELECT COUNT(*)::int FROM agreement_attachments) AS agreement_attachments
     `);
 
     res.json({
